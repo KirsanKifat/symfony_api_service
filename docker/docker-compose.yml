@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  nginx:
+    image: 'nginx:alpine'
+    container_name: api-service-bundle-server
+    working_dir: /application
+    volumes:
+      - '../:/application'
+      - './nginx/:/etc/nginx/conf.d/'
+    ports:
+      - '8000:80'
+  watsup-db:
+    container_name: api-service-bundle-db
+    image: 'mysql:8.0'
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}'
+      MYSQL_DATABASE: '${DB_DATABASE}'
+      MYSQL_USER: '${DB_USERNAME}'
+      MYSQL_PASSWORD: '${DB_PASSWORD}'
+    ports:
+      - '58306:3306'
+  php-fpm:
+    image: dandarie/php-fpm8.0
+    container_name: api-service-bundle-php-fpm
+    working_dir: /application
+    volumes:
+      - '../:/application'

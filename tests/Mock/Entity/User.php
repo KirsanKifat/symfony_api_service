@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tests\Mock\Entity;
+namespace KirsanKifat\ApiServiceBundle\Tests\Mock\Entity;
 
 
 use Doctrine\Common\Collections\ArrayCollection;

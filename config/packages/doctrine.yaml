@@ -12,6 +12,6 @@ doctrine:
         mappings:
             App:
                 is_bundle: false
-                dir: '%kernel.project_dir%/src/Entity'
-                prefix: 'KirsanKifat\ApiServiceBundle\Entity'
+                dir: '%kernel.project_dir%/tests/Mock/Entity'
+                prefix: 'KirsanKifat\ApiServiceBundle\Tests\Mock\Entity'
                 alias: App

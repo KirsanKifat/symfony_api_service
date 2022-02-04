@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Tests\Serializer;
+namespace KirsanKifat\ApiServiceBundle\Tests\Serializer;
 
-use App\Tests\Mock\Entity\Role;
-use App\Tests\Mock\Entity\User;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;
 use KirsanKifat\ApiServiceBundle\Serializer\EntityObjectSerializer;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
