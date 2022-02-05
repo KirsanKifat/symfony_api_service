@@ -7,6 +7,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 use JMS\Serializer\Annotation\ExclusionPolicy;
 use JMS\Serializer\Annotation\MaxDepth;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Repository\UserRepository;
 
 /**
  * @ORM\Entity(repositoryClass=UserRepository::class)
@@ -47,7 +48,7 @@ class User
     /**
      * @ORM\Column(type="boolean")
      */
-    private $active = true;
+    private bool $active = true;
 
     public function __construct()
     {

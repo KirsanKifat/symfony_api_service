@@ -4,6 +4,7 @@ namespace KirsanKifat\ApiServiceBundle\Tests\Mock\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 use JMS\Serializer\Annotation\ExclusionPolicy;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Repository\RoleRepository;
 
 /**
  * @ORM\Entity(repositoryClass=RoleRepository::class)

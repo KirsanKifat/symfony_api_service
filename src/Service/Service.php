@@ -55,6 +55,7 @@ class Service implements ServiceInterface
         $entity = $this->serializer->toObject($params, $this->entityName);
 
         $this->em->persist($entity);
+        $this->em->flush();
 
         return $this->serializer->toObject($entity, $returnType);
     }
