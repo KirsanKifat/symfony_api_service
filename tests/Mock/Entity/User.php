@@ -38,7 +38,7 @@ class User
      * @ORM\JoinColumn(nullable=false)
      * @MaxDepth(1)
      */
-    private ?Role $role;
+    private Role $role;
 
     /**
      * @ORM\Column(type="string", length=255, nullable=true)

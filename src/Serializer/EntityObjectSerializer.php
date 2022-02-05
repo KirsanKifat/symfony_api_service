@@ -5,13 +5,17 @@ namespace KirsanKifat\ApiServiceBundle\Serializer;
 use JMS\Serializer\SerializationContext;
 use JMS\Serializer\Serializer;
 use JMS\Serializer\SerializerBuilder;
+use KirsanKifat\ApiServiceBundle\Exception\ServerException;
+use Psr\Log\LoggerInterface;
 
 class EntityObjectSerializer
 {
     private Serializer $serializer;
+    private LoggerInterface $logger;
 
-    public function __construct()
+    public function __construct(LoggerInterface $logger)
     {
+        $this->logger = $logger;
         $this->serializer = SerializerBuilder::create()->build();
     }
 
@@ -32,20 +36,28 @@ class EntityObjectSerializer
      */
     public function toObject($params, string $objectName): object
     {
+        if (!class_exists($objectName)) {
+            $this->logger->error("Класс " . $objectName . " не существует");
+            throw new ServerException();
+        }
+
         if (is_array($params)) {
             $params = $this->recursiveRemoveNullArrayValue($params, $objectName);
             $object = $this->serializer->fromArray($params, $objectName);
         } elseif (is_object($params)) {
             $params = $this->toArray($params);
             $object = $this->toObject($params, $objectName);
+        } else {
+            $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
+            throw new ServerException();
         }
 
         return $object;
     }
 
     /**
-     * @param object $object
      * @param array|object $params
+     * @param object $object
      * @return object
      */
     public function updateObject($params, object $object): object
@@ -61,8 +73,11 @@ class EntityObjectSerializer
         foreach ($reflectionProperties as $reflectionProperty) {
             $reflectionProperty->setAccessible(true);
             if (!$reflectionProperty->isInitialized($object)) {
-                if ($reflectionProperty->hasType()) {
-                    if ($reflectionProperty->getType()->getName() === 'int' ||$reflectionProperty->getType()->getName() === 'float' ) {
+                if ($reflectionProperty->hasType() && !$reflectionProperty->getType()->allowsNull()) {
+                    if (
+                        $reflectionProperty->getType()->getName() === 'int' ||
+                        $reflectionProperty->getType()->getName() === 'float'
+                    ) {
                         $reflectionProperty->setValue($object, 0);
                     } elseif ($reflectionProperty->getType()->getName() === 'string') {
                         $reflectionProperty->setValue($object, '');
@@ -72,7 +87,14 @@ class EntityObjectSerializer
                         $reflectionProperty->setValue($object, false);
                     } elseif (class_exists($reflectionProperty->getType()->getName())) {
                         $type = $reflectionProperty->getType()->getName();
-                        $reflectionProperty->setValue($object, new $type());
+                        if (get_class($object) === $type) {
+                            $this->logger->error('Объект ' . get_class($object) . ' имеет в себе рекурсивное представление себя');
+                            throw new ServerException();
+                        }
+
+                        [$subObject, $trash] = $this->recursiveInitializationAnyProperty(new $type());
+
+                        $reflectionProperty->setValue($object, $subObject);
                     }
                     $initNotNullProperties[] = $reflectionProperty->getName();
                 } else {
@@ -114,7 +136,7 @@ class EntityObjectSerializer
         foreach ($reflectionProperties as $reflectionProperty) {
             $propertyName = $reflectionProperty->getName();
             if(
-                !empty($reflectionProperty->getType()) &&
+                $reflectionProperty->hasType() &&
                 !$reflectionProperty->getType()->allowsNull() &&
                 empty($params[$propertyName])
             ) {
@@ -122,7 +144,7 @@ class EntityObjectSerializer
             }
 
             if (
-                !empty($reflectionProperty->getType()) &&
+                $reflectionProperty->hasType() &&
                 class_exists($reflectionProperty->getType()->getName()) &&
                 is_array($params[$propertyName])
             ) {

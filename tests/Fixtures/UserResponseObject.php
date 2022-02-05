@@ -7,7 +7,7 @@ use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\UserResponse;
 
 class UserResponseObject
 {
-    public static function get()
+    public static function get(): UserResponse
     {
         $user = new UserResponse();
         $user->id = 1;
