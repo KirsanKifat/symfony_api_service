@@ -50,10 +50,6 @@ class User
      */
     private bool $active = true;
 
-    public function __construct()
-    {
-        $this->sales = new ArrayCollection();
-    }
 
     public function getId(): ?int
     {

@@ -32,8 +32,15 @@ class EntityObjectSerializer
      */
     public function toObject($params, string $objectName): object
     {
-        $params = $this->recursiveRemoveNullArrayValue($params, $objectName);
-        return $this->serializer->fromArray($params, $objectName);
+        if (is_array($params)) {
+            $params = $this->recursiveRemoveNullArrayValue($params, $objectName);
+            $object = $this->serializer->fromArray($params, $objectName);
+        } elseif (is_object($params)) {
+            $params = $this->toArray($params);
+            $object = $this->toObject($params, $objectName);
+        }
+
+        return $object;
     }
 
     /**
