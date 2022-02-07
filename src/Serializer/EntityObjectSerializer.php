@@ -2,6 +2,7 @@
 
 namespace KirsanKifat\ApiServiceBundle\Serializer;
 
+use JMS\Serializer\Naming\IdenticalPropertyNamingStrategy;
 use JMS\Serializer\SerializationContext;
 use JMS\Serializer\Serializer;
 use JMS\Serializer\SerializerBuilder;
@@ -16,15 +17,20 @@ class EntityObjectSerializer
     public function __construct(LoggerInterface $logger)
     {
         $this->logger = $logger;
-        $this->serializer = SerializerBuilder::create()->build();
+        $builder = SerializerBuilder::create();
+        $builder->setPropertyNamingStrategy(new IdenticalPropertyNamingStrategy());
+        $this->serializer = $builder->build();
     }
 
-    public function toArray(object $object): array
+    public function toArray(object $object, $returnNull = true): array
     {
         [$object, $initNotNullProperties] = $this->recursiveInitializationAnyProperty($object);
-        $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks());
-
-        return $this->recursiveSetNullForInitProperty($array,$initNotNullProperties);
+        $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull($returnNull));
+        if ($returnNull) {
+            return $this->recursiveSetNullForInitProperty($array,$initNotNullProperties);
+        } else {
+            return $this->recursiveRemoveNullKeysForInitProperty($array, $initNotNullProperties);
+        }
     }
 
     /**
@@ -34,7 +40,7 @@ class EntityObjectSerializer
      * @param string $objectName
      * @return object
      */
-    public function toObject($params, string $objectName): object
+    public function toObject($params, string $objectName, $setNullValue = true): object
     {
         if (!class_exists($objectName)) {
             $this->logger->error("Класс " . $objectName . " не существует");
@@ -42,10 +48,14 @@ class EntityObjectSerializer
         }
 
         if (is_array($params)) {
-            $params = $this->recursiveRemoveNullArrayValue($params, $objectName);
+            if ($setNullValue) {
+                $params = $this->recursiveClearArrayForDeserialization($params, $objectName);
+            } else {
+                $params = $this->recursiveRemoveNullValue($params);
+            }
             $object = $this->serializer->fromArray($params, $objectName);
         } elseif (is_object($params)) {
-            $params = $this->toArray($params);
+            $params = $this->toArray($params, $setNullValue);
             $object = $this->toObject($params, $objectName);
         } else {
             $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
@@ -62,7 +72,17 @@ class EntityObjectSerializer
      */
     public function updateObject($params, object $object): object
     {
+        if (is_array($params)) {
+            $object = $this->recursiveSetValueIntoObject($params, $object);
+        } elseif (is_object($params)) {
+            $paramsArray = $this->toArray($params);
+            $object = $this->recursiveSetValueIntoObject($paramsArray, $object);
+        } else {
+            $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
+            throw new ServerException();
+        }
 
+        return $object;
     }
 
     private function recursiveInitializationAnyProperty(object $object): array
@@ -127,7 +147,20 @@ class EntityObjectSerializer
         return $array;
     }
 
-    public function recursiveRemoveNullArrayValue($params, $objectName)
+    private function recursiveRemoveNullKeysForInitProperty(array $array, array $initNotNullProperties): array
+    {
+        foreach ($initNotNullProperties as $key => $initNotNullProperty) {
+            if (is_array($initNotNullProperty) && !empty($initNotNullProperty)) {
+                $array[$key] = $this->recursiveRemoveNullKeysForInitProperty($array[$key], $initNotNullProperty);
+            } else {
+                unset($array[$initNotNullProperty]);
+            }
+        }
+
+        return $array;
+    }
+
+    private function recursiveClearArrayForDeserialization($params, $objectName)
     {
         $reflectionClass = new \ReflectionClass($objectName);
 
@@ -148,10 +181,39 @@ class EntityObjectSerializer
                 class_exists($reflectionProperty->getType()->getName()) &&
                 is_array($params[$propertyName])
             ) {
-                $params[$propertyName] = $this->recursiveRemoveNullArrayValue($params[$propertyName], $reflectionProperty->getType()->getName());
+                $params[$propertyName] = $this->recursiveClearArrayForDeserialization($params[$propertyName], $reflectionProperty->getType()->getName());
             }
         }
 
         return $params;
+    }
+
+    private function recursiveRemoveNullValue(array $array): array
+    {
+        foreach ($array as $key => $value) {
+            if (is_array($value) && !empty($value)) {
+                $array[$key] = $this->recursiveRemoveNullValue($value);
+            } elseif (is_null($value)) {
+                unset($array[$key]);
+            }
+        }
+
+        return $array;
+    }
+
+    private function recursiveSetValueIntoObject(array $params, object $object): object
+    {
+        $reflectionClass = new \ReflectionClass($object);
+
+        $reflectionProperties = $reflectionClass->getProperties();
+
+        foreach ($reflectionProperties as $reflectionProperty) {
+            if (array_key_exists($reflectionProperty->getName(), $params)) {
+                $reflectionProperty->setAccessible(true);
+                $reflectionProperty->setValue($object, $params[$reflectionProperty->getName()]);
+            }
+        }
+
+        return $object;
     }
 }
