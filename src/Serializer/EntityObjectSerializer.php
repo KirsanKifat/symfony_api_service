@@ -22,10 +22,15 @@ class EntityObjectSerializer
         $this->serializer = $builder->build();
     }
 
-    public function toArray(object $object, $returnNull = true): array
+    public function toArray(object $object, $returnNull = true, $returnOnlyInitNull = false): array
     {
         [$object, $initNotNullProperties] = $this->recursiveInitializationAnyProperty($object);
-        $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull($returnNull));
+        if (!$returnNull && $returnOnlyInitNull) {
+            $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull(true));
+        } else {
+            $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull($returnNull));
+        }
+
         if ($returnNull) {
             return $this->recursiveSetNullForInitProperty($array,$initNotNullProperties);
         } else {
@@ -70,19 +75,18 @@ class EntityObjectSerializer
      * @param object $object
      * @return object
      */
-    public function updateObject($params, object $object): object
+    public function updateObject($params, object $object, bool $setNullProperty = true): object
     {
-        if (is_array($params)) {
-            $object = $this->recursiveSetValueIntoObject($params, $object);
-        } elseif (is_object($params)) {
-            $paramsArray = $this->toArray($params);
-            $object = $this->recursiveSetValueIntoObject($paramsArray, $object);
-        } else {
+        if (!is_object($params) && !is_array($params)){
             $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
             throw new ServerException();
         }
 
-        return $object;
+        if (is_object($params)) {
+            $params = $this->toArray($params, false, $setNullProperty);
+        }
+
+        return $this->setValueIntoObject($params, $object, $setNullProperty);
     }
 
     private function recursiveInitializationAnyProperty(object $object): array
@@ -201,7 +205,7 @@ class EntityObjectSerializer
         return $array;
     }
 
-    private function recursiveSetValueIntoObject(array $params, object $object): object
+    private function setValueIntoObject(array $params, object $object, bool $setNullFlag): object
     {
         $reflectionClass = new \ReflectionClass($object);
 
@@ -209,6 +213,15 @@ class EntityObjectSerializer
 
         foreach ($reflectionProperties as $reflectionProperty) {
             if (array_key_exists($reflectionProperty->getName(), $params)) {
+                if (is_null($params[$reflectionProperty->getName()]) &&
+                    (
+                        !$reflectionProperty->getType()->allowsNull() ||
+                        !$setNullFlag
+                    )
+                ) {
+                    continue;
+                }
+
                 $reflectionProperty->setAccessible(true);
                 $reflectionProperty->setValue($object, $params[$reflectionProperty->getName()]);
             }

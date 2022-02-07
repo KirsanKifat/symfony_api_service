@@ -23,7 +23,7 @@ class Service implements ServiceInterface
         $this->logger = $logger;
         $this->entityName = $entityName;
         $this->uniqueParams = $uniqueParams;
-        $this->serializer = new EntityObjectSerializer();
+        $this->serializer = new EntityObjectSerializer($logger);
     }
 
     public function get($params, string $returnType): object

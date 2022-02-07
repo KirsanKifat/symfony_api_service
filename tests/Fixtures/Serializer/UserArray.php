@@ -1,17 +1,15 @@
 <?php
+namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer;
 
-namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures;
-
-class UserEntityArray
-{
+class UserArray {
     public static function get(): array
     {
         return [
-            'id' => 1,
+            'id' => null,
             'login' => 'test',
             'password' => 'test',
             'email' => 'test@gmail.com',
-            'role' => ['id' => 1, 'name' => 'admin'],
+            'role' => ['id' => null, 'name' => 'admin'],
             'active' => true
         ];
     }

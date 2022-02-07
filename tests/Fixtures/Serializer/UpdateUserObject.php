@@ -1,6 +1,6 @@
 <?php
 
-namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures;
+namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer;
 
 class UpdateUserObject
 {

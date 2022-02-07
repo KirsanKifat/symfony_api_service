@@ -1,6 +1,6 @@
 <?php
 
-namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures;
+namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer;
 
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;

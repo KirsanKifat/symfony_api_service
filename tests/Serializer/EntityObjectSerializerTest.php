@@ -4,26 +4,24 @@ namespace KirsanKifat\ApiServiceBundle\Tests\Serializer;
 
 use Doctrine\ORM\EntityManagerInterface;
 use KirsanKifat\ApiServiceBundle\Exception\ServerException;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\DefaultValueIsNull;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\ExtendedNullableDefaultValueObject;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Logger;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\RecursionEntityObject;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UpdateUserArray;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UpdateUserObject;
+use KirsanKifat\ApiServiceBundle\Serializer\EntityObjectSerializer;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\DefaultValueIsNull;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\ExtendedNullableDefaultValueObject;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\Logger;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\RecursionEntityObject;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UpdateUserArray;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UpdateUserObject;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserArray;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserArrayWithoutNull;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClass;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClassWIthEmptyRole;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserEntityArray;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserResponseObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserAfterUpdate;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserArray;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserArrayWithoutNull;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserClass;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserClassWIthEmptyRole;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserEntityArray;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserResponseObject;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\UserResponse;
-use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\ExtendedNullableDefaultValue;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\NullableDefaultValue;
-use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\RecursionEntity;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;
-use KirsanKifat\ApiServiceBundle\Serializer\EntityObjectSerializer;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class EntityObjectSerializerTest extends KernelTestCase
@@ -155,20 +153,115 @@ class EntityObjectSerializerTest extends KernelTestCase
         $this->assertEquals(true, $result->getActive());
     }
 
-//    public function testUpdateObjectFromObject()
-//    {
-//        $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
-//
-//        $result = $this->serializer->updateObject(UpdateUserObject::get(), $user);
-//
-//        /** @var User $result */
-//        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
-//
-//        $this->assertEquals(1, $result->getId());
-//        $this->assertEquals('new', $result->getLogin());
-//        $this->assertEquals('test', $result->getPassword());
-//        $this->assertEquals($role, $result->getRole());
-//        $this->assertEquals('my_email@gmail.com', $result->getEmail());
-//        $this->assertEquals(true, $result->getActive());
-//    }
+    //todo добавить изменение роли
+    public function testUpdateObjectFromObject()
+    {
+        $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
+
+        $result = $this->serializer->updateObject(UpdateUserObject::get(), $user);
+
+        /** @var User $result */
+        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals('new', $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals('my_email@gmail.com', $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
+
+    public function testSetNullForUpdateObjectFromArr()
+    {
+        $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
+
+        /** @var User $result */
+        $result = $this->serializer->updateObject(['login' => null], $user);
+
+        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals(null, $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals('test@gmail.com', $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
+
+    public function testSetNullForUpdateObjectFromObject()
+    {
+        $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
+
+        $updateObj = UpdateUserObject::get();
+        $updateObj->email = null;
+
+        /** @var User $result */
+        $result = $this->serializer->updateObject($updateObj, $user);
+
+        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals('new', $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals(null, $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
+
+    public function testDontSetNulForUpdateObjFromArr()
+    {
+        $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
+
+        /** @var User $result */
+        $result = $this->serializer->updateObject(['login' => null], $user, false);
+
+        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals('test', $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals('test@gmail.com', $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
+
+    public function testDontSetNullForUpdateObjFromObj()
+    {
+        $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
+
+        $updateObj = UpdateUserObject::get();
+        $updateObj->email = null;
+
+        /** @var User $result */
+        $result = $this->serializer->updateObject($updateObj, $user, false);
+
+        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals('new', $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals('test@gmail.com', $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
+
+    public function testSetNullOnNotNullableProperty()
+    {
+        $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
+
+        $updateObj = UpdateUserObject::get();
+        $updateObj->role = null;
+
+        /** @var User $result */
+        $result = $this->serializer->updateObject($updateObj, $user, false);
+
+        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals('new', $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals('my_email@gmail.com', $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
 }
