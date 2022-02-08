@@ -147,7 +147,6 @@ class EntityObjectSerializerTest extends KernelTestCase
         $this->assertEquals(true, $result->getActive());
     }
 
-    //todo добавить изменение роли
     public function testUpdateObjectFromObject()
     {
         $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
