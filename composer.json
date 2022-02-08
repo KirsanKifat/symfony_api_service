@@ -1,6 +1,6 @@
 {
     "name": "kirsankifat/symfony_api_service",
-    "description": "Health check bundle",
+    "description": "Symfony api default service structure",
     "type": "symfony-bundle",
     "license": "proprietary",
     "require": {
@@ -53,6 +53,9 @@
         "symfony": {
             "allow-contrib": false,
             "require": "4.4.*"
+        },
+        "branch-alias": {
+            "dev-master": "1.x-dev"
         }
     },
     "require-dev": {
@@ -69,5 +72,6 @@
             "cache:clear": "symfony-cmd",
             "assets:install %PUBLIC_DIR%": "symfony-cmd"
         }
-    }
+    },
+
 }
