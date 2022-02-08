@@ -2,7 +2,14 @@
     "name": "kirsankifat/symfony_api_service",
     "description": "Symfony api default service structure",
     "type": "symfony-bundle",
-    "license": "proprietary",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Svyatoslav Karamushko",
+            "email": "karamushkoss@gmail.com"
+        }
+    ],
+    "prefer-stable": true,
     "require": {
         "php": ">=7.4",
         "ext-ctype": "*",
@@ -50,10 +57,6 @@
         "symfony/symfony": "*"
     },
     "extra": {
-        "symfony": {
-            "allow-contrib": false,
-            "require": "4.4.*"
-        },
         "branch-alias": {
             "dev-master": "1.x-dev"
         }
@@ -66,11 +69,5 @@
         "symfony/css-selector": "4.4.*",
         "symfony/maker-bundle": "^1.36",
         "symfony/phpunit-bridge": "^6.0"
-    },
-    "scripts": {
-        "auto-scripts": {
-            "cache:clear": "symfony-cmd",
-            "assets:install %PUBLIC_DIR%": "symfony-cmd"
-        }
     }
 }
