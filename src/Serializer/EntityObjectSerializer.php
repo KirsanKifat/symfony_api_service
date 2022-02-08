@@ -2,228 +2,77 @@
 
 namespace KirsanKifat\ApiServiceBundle\Serializer;
 
-use JMS\Serializer\Naming\IdenticalPropertyNamingStrategy;
-use JMS\Serializer\SerializationContext;
-use JMS\Serializer\Serializer;
-use JMS\Serializer\SerializerBuilder;
-use KirsanKifat\ApiServiceBundle\Exception\ServerException;
+use Doctrine\ORM\EntityManagerInterface;
+use KirsanKifat\ApiServiceBundle\Exception\ObjectNotFoundException;
 use Psr\Log\LoggerInterface;
+use ReflectionClass;
 
 class EntityObjectSerializer
 {
-    private Serializer $serializer;
-    private LoggerInterface $logger;
+    private EntityManagerInterface $em;
 
-    public function __construct(LoggerInterface $logger)
+    private ObjectSerializer $serializer;
+
+    public function __construct(EntityManagerInterface $em, LoggerInterface $logger)
     {
-        $this->logger = $logger;
-        $builder = SerializerBuilder::create();
-        $builder->setPropertyNamingStrategy(new IdenticalPropertyNamingStrategy());
-        $this->serializer = $builder->build();
+        $this->em = $em;
+        $this->serializer = new ObjectSerializer($logger);
     }
 
-    public function toArray(object $object, $returnNull = true, $returnOnlyInitNull = false): array
+    public function toEntity(array $params, string $entityName)
     {
-        [$object, $initNotNullProperties] = $this->recursiveInitializationAnyProperty($object);
-        if (!$returnNull && $returnOnlyInitNull) {
-            $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull(true));
-        } else {
-            $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull($returnNull));
-        }
-
-        if ($returnNull) {
-            return $this->recursiveSetNullForInitProperty($array,$initNotNullProperties);
-        } else {
-            return $this->recursiveRemoveNullKeysForInitProperty($array, $initNotNullProperties);
-        }
+        $params = $this->updateArray($params, $entityName);
+        $object = $this->serializer->toObject($params, $entityName);
+        return $this->updateObject($object);
     }
 
-    /**
-     * Converted to object from object or array
-     *
-     * @param array|object $params
-     * @param string $objectName
-     * @return object
-     */
-    public function toObject($params, string $objectName, $setNullValue = true): object
-    {
-        if (!class_exists($objectName)) {
-            $this->logger->error("Класс " . $objectName . " не существует");
-            throw new ServerException();
-        }
-
-        if (is_array($params)) {
-            if ($setNullValue) {
-                $params = $this->recursiveClearArrayForDeserialization($params, $objectName);
-            } else {
-                $params = $this->recursiveRemoveNullValue($params);
-            }
-            $object = $this->serializer->fromArray($params, $objectName);
-        } elseif (is_object($params)) {
-            $params = $this->toArray($params, $setNullValue);
-            $object = $this->toObject($params, $objectName);
-        } else {
-            $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
-            throw new ServerException();
-        }
-
-        return $object;
-    }
-
-    /**
-     * @param array|object $params
-     * @param object $object
-     * @return object
-     */
-    public function updateObject($params, object $object, bool $setNullProperty = true): object
-    {
-        if (!is_object($params) && !is_array($params)){
-            $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
-            throw new ServerException();
-        }
-
-        if (is_object($params)) {
-            $params = $this->toArray($params, false, $setNullProperty);
-        }
-
-        return $this->setValueIntoObject($params, $object, $setNullProperty);
-    }
-
-    private function recursiveInitializationAnyProperty(object $object): array
-    {
-        $reflectionClass = new \ReflectionClass($object);
-        $reflectionProperties = $reflectionClass->getProperties();
-        $initNotNullProperties = [];
-        foreach ($reflectionProperties as $reflectionProperty) {
-            $reflectionProperty->setAccessible(true);
-            if (!$reflectionProperty->isInitialized($object)) {
-                if ($reflectionProperty->hasType() && !$reflectionProperty->getType()->allowsNull()) {
-                    if (
-                        $reflectionProperty->getType()->getName() === 'int' ||
-                        $reflectionProperty->getType()->getName() === 'float'
-                    ) {
-                        $reflectionProperty->setValue($object, 0);
-                    } elseif ($reflectionProperty->getType()->getName() === 'string') {
-                        $reflectionProperty->setValue($object, '');
-                    } elseif ($reflectionProperty->getType()->getName() === 'array') {
-                        $reflectionProperty->setValue($object, []);
-                    } elseif ($reflectionProperty->getType()->getName() === 'bool') {
-                        $reflectionProperty->setValue($object, false);
-                    } elseif (class_exists($reflectionProperty->getType()->getName())) {
-                        $type = $reflectionProperty->getType()->getName();
-                        if (get_class($object) === $type) {
-                            $this->logger->error('Объект ' . get_class($object) . ' имеет в себе рекурсивное представление себя');
-                            throw new ServerException();
-                        }
-
-                        [$subObject, $trash] = $this->recursiveInitializationAnyProperty(new $type());
-
-                        $reflectionProperty->setValue($object, $subObject);
-                    }
-                    $initNotNullProperties[] = $reflectionProperty->getName();
-                } else {
-                    $reflectionProperty->setValue($object,null);
-                }
-            } else {
-                if (is_object($reflectionProperty->getValue($object))) {
-                    [$subObject, $subInitNotNullProperties] = $this->recursiveInitializationAnyProperty($reflectionProperty->getValue($object));
-                    if (!empty($subInitNotNullProperties)) {
-                        $reflectionProperty->setValue($object, $subObject);
-                        $initNotNullProperties[$reflectionProperty->getName()] = $subInitNotNullProperties;
-                    }
-                }
-            }
-        }
-
-        return [$object, $initNotNullProperties];
-    }
-
-    private function recursiveSetNullForInitProperty(array $array, array $initNotNullProperties): array
-    {
-        foreach ($initNotNullProperties as $key => $initNotNullProperty) {
-            if (is_array($initNotNullProperty) && !empty($initNotNullProperty)) {
-                $array[$key] = $this->recursiveSetNullForInitProperty($array[$key], $initNotNullProperty);
-            } else {
-                $array[$initNotNullProperty] = null;
-            }
-        }
-
-        return $array;
-    }
-
-    private function recursiveRemoveNullKeysForInitProperty(array $array, array $initNotNullProperties): array
-    {
-        foreach ($initNotNullProperties as $key => $initNotNullProperty) {
-            if (is_array($initNotNullProperty) && !empty($initNotNullProperty)) {
-                $array[$key] = $this->recursiveRemoveNullKeysForInitProperty($array[$key], $initNotNullProperty);
-            } else {
-                unset($array[$initNotNullProperty]);
-            }
-        }
-
-        return $array;
-    }
-
-    private function recursiveClearArrayForDeserialization($params, $objectName)
+    private function updateArray(array $params, string $objectName): array
     {
         $reflectionClass = new \ReflectionClass($objectName);
 
         $reflectionProperties = $reflectionClass->getProperties();
 
-        foreach ($reflectionProperties as $reflectionProperty) {
-            $propertyName = $reflectionProperty->getName();
-            if(
-                $reflectionProperty->hasType() &&
-                !$reflectionProperty->getType()->allowsNull() &&
-                empty($params[$propertyName])
+        foreach ($reflectionProperties as $property) {
+            if ($property->hasType() &&
+                class_exists($property->getType()->getName()) &&
+                is_int($params[$property->getName()])
             ) {
-                unset($params[$propertyName]);
-            }
-
-            if (
-                $reflectionProperty->hasType() &&
-                class_exists($reflectionProperty->getType()->getName()) &&
-                is_array($params[$propertyName])
-            ) {
-                $params[$propertyName] = $this->recursiveClearArrayForDeserialization($params[$propertyName], $reflectionProperty->getType()->getName());
+                $params[$property->getName()] = ['id' => $params[$property->getName()]];
             }
         }
 
         return $params;
     }
 
-    private function recursiveRemoveNullValue(array $array): array
+    private function updateObject(object $object): object
     {
-        foreach ($array as $key => $value) {
-            if (is_array($value) && !empty($value)) {
-                $array[$key] = $this->recursiveRemoveNullValue($value);
-            } elseif (is_null($value)) {
-                unset($array[$key]);
-            }
-        }
-
-        return $array;
-    }
-
-    private function setValueIntoObject(array $params, object $object, bool $setNullFlag): object
-    {
-        $reflectionClass = new \ReflectionClass($object);
+        $reflectionClass = new ReflectionClass($object);
 
         $reflectionProperties = $reflectionClass->getProperties();
 
         foreach ($reflectionProperties as $reflectionProperty) {
-            if (array_key_exists($reflectionProperty->getName(), $params)) {
-                if (is_null($params[$reflectionProperty->getName()]) &&
-                    (
-                        !$reflectionProperty->getType()->allowsNull() ||
-                        !$setNullFlag
-                    )
-                ) {
-                    continue;
+            $reflectionProperty->setAccessible(true);
+            if (!$reflectionProperty->hasType() ||
+                !$reflectionProperty->isInitialized($object) ||
+                empty($reflectionProperty->getValue($object))
+            ) {
+                continue;
+            }
+
+            $className = $reflectionProperty->getType()->getName();
+            $propertyValue = $reflectionProperty->getValue($object);
+            if (
+                class_exists($className) &&
+                !$this->em->getMetadataFactory()->isTransient($className) &&
+                $reflectionClass->hasMethod('getId')
+            ) {
+                $entity = $this->em->getRepository($className)->find($propertyValue->getId());
+                if (empty($entity)) {
+                    throw new ObjectNotFoundException('Объект класса ' . $className .
+                        ' с id=' . $propertyValue->getId() . ' не найден');
                 }
 
-                $reflectionProperty->setAccessible(true);
-                $reflectionProperty->setValue($object, $params[$reflectionProperty->getName()]);
+                $reflectionProperty->setValue($object, $entity);
             }
         }
 

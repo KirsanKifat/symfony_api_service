@@ -9,32 +9,32 @@ interface ServiceInterface
      * @param string $returnType
      * @return object
      */
-    public function get($params, string $returnType): object;
+    public function get($params, string $returnType = null): ?object;
 
     /**
      * @param array|object $params
      * @param string $returnType
      * @return object[]
      */
-    public function getIn($params, string $returnType): array;
+    public function getIn($params, string $returnType = null): array;
 
     /**
      * @param array|object $params
      * @param string $returnType
      * @return object
      */
-    public function create($params, string $returnType): object;
+    public function create($params, string $returnType = null): object;
 
     /**
      * @param array|object $params
      * @param string $returnType
      * @return object
      */
-    public function edit($params, string $returnType): object;
+    public function edit($params, string $returnType = null): object;
 
     /**
-     * @param array|object $params
+     * @param int $id
      * @return mixed
      */
-    public function delete($params): void;
+    public function delete(int $id): void;
 }

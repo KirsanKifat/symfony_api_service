@@ -2,20 +2,23 @@
 
 namespace KirsanKifat\ApiServiceBundle\Service;
 
+use KirsanKifat\ApiServiceBundle\Exception\IncorrectParamsException;
 use KirsanKifat\ApiServiceBundle\Exception\ObjectNotFoundException;
 use KirsanKifat\ApiServiceBundle\Exception\ServerException;
 use KirsanKifat\ApiServiceBundle\Exception\ValidationUniqueException;
 use KirsanKifat\ApiServiceBundle\Serializer\EntityObjectSerializer;
+use KirsanKifat\ApiServiceBundle\Serializer\ObjectSerializer;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
-class Service implements ServiceInterface
+abstract class Service implements ServiceInterface
 {
     protected EntityManagerInterface $em;
     protected LoggerInterface $logger;
     protected string $entityName;
     protected array $uniqueParams;
-    protected EntityObjectSerializer $serializer;
+    protected ObjectSerializer $serializer;
+    protected EntityObjectSerializer $entitySerializer;
 
     public function __construct(EntityManagerInterface $em, LoggerInterface $logger, string $entityName, array $uniqueParams = [])
     {
@@ -23,21 +26,38 @@ class Service implements ServiceInterface
         $this->logger = $logger;
         $this->entityName = $entityName;
         $this->uniqueParams = $uniqueParams;
-        $this->serializer = new EntityObjectSerializer($logger);
+        $this->serializer = new ObjectSerializer($logger);
+        $this->entitySerializer = new EntityObjectSerializer($em, $logger);
     }
 
-    public function get($params, string $returnType): object
+    public function get($params, string $returnType = null): ?object
     {
-        $params = $this->serializer->toArray($params);
+        if (is_null($returnType)) {
+            $returnType = $this->entityName;
+        }
+
+        if (is_object($params)) {
+            $params = $this->serializer->toArray($params);
+        }
 
         $entity = $this->em->getRepository($this->entityName)->findOneBy($params);
 
-        return $this->serializer->toObject($entity, $returnType);
+        if (!empty($entity)) {
+            return $this->serializer->toObject($entity, $returnType);
+        } else {
+            return null;
+        }
     }
 
-    public function getIn($params, string $returnType): array
+    public function getIn($params, string $returnType = null): array
     {
-        $params = $this->serializer->toArray($params);
+        if (is_null($returnType)) {
+            $returnType = $this->entityName;
+        }
+
+        if (is_object($params)) {
+            $params = $this->serializer->toArray($params);
+        }
 
         $entities = $this->em->getRepository($this->entityName)->findBy($params);
 
@@ -48,11 +68,19 @@ class Service implements ServiceInterface
         return $entities;
     }
 
-    public function create($params, string $returnType): object
+    public function create($params, string $returnType = null): object
     {
-        $this->checkUnique($this->serializer->toArray($params));
+        if (is_object($params)) {
+            $params = $this->serializer->toArray($params);
+        }
 
-        $entity = $this->serializer->toObject($params, $this->entityName);
+        $this->checkUnique($params);
+
+        if (is_null($returnType)) {
+            $returnType = $this->entityName;
+        }
+
+        $entity = $this->entitySerializer->toEntity($params, $this->entityName);
 
         $this->em->persist($entity);
         $this->em->flush();
@@ -60,15 +88,21 @@ class Service implements ServiceInterface
         return $this->serializer->toObject($entity, $returnType);
     }
 
-    public function edit($params, string $returnType): object
+    public function edit($params, string $returnType = null): object
     {
-        $params = $this->serializer->toArray($params);
-
-        if (!isset($params['id'])) {
-            throw new ServerException();
+        if (is_object($params)) {
+            $params = $this->serializer->toArray($params, false, true);
         }
 
-        $this->checkUnique($params);
+        if (is_null($returnType)) {
+            $returnType = $this->entityName;
+        }
+
+        if (!isset($params['id'])) {
+            throw new IncorrectParamsException('Параметр id является обязательным');
+        }
+
+        $this->checkUnique($params, $params['id']);
 
         $entity = $this->em->getRepository($this->entityName)->find($params['id']);
 
@@ -76,6 +110,7 @@ class Service implements ServiceInterface
             throw new ObjectNotFoundException();
         }
 
+        $params = $this->entitySerializer->toEntity($params, $this->entityName);
         $entity = $this->serializer->updateObject($params, $entity);
 
         $this->em->persist($entity);
@@ -84,15 +119,9 @@ class Service implements ServiceInterface
         return $this->serializer->toObject($entity, $returnType);
     }
 
-    public function delete($params): void
+    public function delete(int $id): void
     {
-        $params = $this->serializer->toArray($params);
-
-        if (!isset($params['id'])) {
-            throw new ServerException();
-        }
-
-        $entity = $this->em->getRepository($this->entityName)->find($params['id']);
+        $entity = $this->em->getRepository($this->entityName)->find($id);
 
         if (empty($entity)) {
             throw new ObjectNotFoundException();
@@ -107,13 +136,18 @@ class Service implements ServiceInterface
      * @return void
      * @throws ValidationUniqueException
      */
-    protected function checkUnique(array $params): void
+    protected function checkUnique(array $params, $idExclude = null): void
     {
         foreach ($params as $param => $value) {
             if (in_array($param, $this->uniqueParams)) {
-                $entity = $this->em->getRepository($this->entityName)->findOneBy([$param => $value]);
+                $entities = $this->em->getRepository($this->entityName)->findBy([$param => $value]);
 
-                if (!empty($entity)){
+                if (!empty($entities) &&
+                    (
+                        count($entities) > 1 ||
+                        $entities[0]->getId() !== $idExclude
+                    )
+                ){
                     throw new ValidationUniqueException($param);
                 }
             }

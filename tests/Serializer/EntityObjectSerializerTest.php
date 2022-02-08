@@ -4,7 +4,7 @@ namespace KirsanKifat\ApiServiceBundle\Tests\Serializer;
 
 use Doctrine\ORM\EntityManagerInterface;
 use KirsanKifat\ApiServiceBundle\Exception\ServerException;
-use KirsanKifat\ApiServiceBundle\Serializer\EntityObjectSerializer;
+use KirsanKifat\ApiServiceBundle\Serializer\ObjectSerializer;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\DefaultValueIsNull;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\ExtendedNullableDefaultValueObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\Logger;
@@ -17,7 +17,6 @@ use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClass;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClassWIthEmptyRole;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserEntityArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserResponseObject;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\UserAfterUpdate;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\UserResponse;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\NullableDefaultValue;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
@@ -26,7 +25,7 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class EntityObjectSerializerTest extends KernelTestCase
 {
-    private EntityObjectSerializer $serializer;
+    private ObjectSerializer $serializer;
     private EntityManagerInterface $em;
 
     protected function setUp(): void
@@ -39,7 +38,7 @@ class EntityObjectSerializerTest extends KernelTestCase
 
 
 
-        $this->serializer = new EntityObjectSerializer(new Logger());
+        $this->serializer = new ObjectSerializer(new Logger());
     }
 
     public function testToArray()
@@ -122,11 +121,6 @@ class EntityObjectSerializerTest extends KernelTestCase
         $this->assertEquals( DefaultValueIsNull::get(), $object);
     }
 
-    /**
-     * @return void
-     * @throws ServerException
-     * @group my
-     */
     public function testNotSetNullInDefaultValueFromObject()
     {
         $object = $this->serializer->toObject(ExtendedNullableDefaultValueObject::get(), NullableDefaultValue::class, false);
