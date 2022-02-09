@@ -4,7 +4,7 @@ namespace KirsanKifat\ApiServiceBundle\Exception;
 
 class ServerException extends \Exception
 {
-    protected $message = "Ошибка сервер";
+    protected $message = "Ошибка сервера";
 
     protected $code = 500;
 }
