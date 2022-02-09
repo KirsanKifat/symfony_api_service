@@ -26,6 +26,7 @@ class ObjectSerializer
     public function toArray(object $object, $returnNull = true, $returnOnlyInitNull = false): array
     {
         [$object, $initNotNullProperties] = $this->recursiveInitializationAnyProperty($object);
+
         if (!$returnNull && $returnOnlyInitNull) {
             $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull(true));
         } else {
@@ -116,12 +117,12 @@ class ObjectSerializer
                         $reflectionProperty->setValue($object, false);
                     } elseif (class_exists($reflectionProperty->getType()->getName())) {
                         $type = $reflectionProperty->getType()->getName();
-                        if (get_class($object) === $type || $count > 10) {
+                        if (get_class($object) === $type || $count > 5) {
                             $this->logger->error('Объект ' . get_class($object) . ' имеет в себе рекурсивное представление себя');
                             throw new ServerException();
                         }
-
-                        [$subObject, $trash] = $this->recursiveInitializationAnyProperty(new $type(), $count++);
+                        $count++;
+                        [$subObject, $trash] = $this->recursiveInitializationAnyProperty(new $type(), $count);
 
                         $reflectionProperty->setValue($object, $subObject);
                     }
