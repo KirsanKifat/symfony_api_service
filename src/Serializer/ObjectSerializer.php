@@ -62,6 +62,9 @@ class ObjectSerializer
 
             $object = $this->serializer->fromArray($params, $objectName);
         } elseif (is_object($params)) {
+            if (get_class($params) === $objectName) {
+                return $params;
+            }
             $params = $this->toArray($params, $setNullValue);
             $object = $this->toObject($params, $objectName, $setNullValue);
         } else {
@@ -91,7 +94,7 @@ class ObjectSerializer
         }
     }
 
-    private function recursiveInitializationAnyProperty(object $object): array
+    private function recursiveInitializationAnyProperty(object $object, int $count = 0): array
     {
         $reflectionClass = new \ReflectionClass($object);
         $reflectionProperties = $reflectionClass->getProperties();
@@ -113,12 +116,12 @@ class ObjectSerializer
                         $reflectionProperty->setValue($object, false);
                     } elseif (class_exists($reflectionProperty->getType()->getName())) {
                         $type = $reflectionProperty->getType()->getName();
-                        if (get_class($object) === $type) {
+                        if (get_class($object) === $type || $count > 10) {
                             $this->logger->error('Объект ' . get_class($object) . ' имеет в себе рекурсивное представление себя');
                             throw new ServerException();
                         }
 
-                        [$subObject, $trash] = $this->recursiveInitializationAnyProperty(new $type());
+                        [$subObject, $trash] = $this->recursiveInitializationAnyProperty(new $type(), $count++);
 
                         $reflectionProperty->setValue($object, $subObject);
                     }
@@ -128,7 +131,10 @@ class ObjectSerializer
                 }
             } else {
                 if (is_object($reflectionProperty->getValue($object))) {
-                    [$subObject, $subInitNotNullProperties] = $this->recursiveInitializationAnyProperty($reflectionProperty->getValue($object));
+                    if ($count < 5) {
+                        $count++;
+                        [$subObject, $subInitNotNullProperties] = $this->recursiveInitializationAnyProperty($reflectionProperty->getValue($object), $count);
+                    }
                     if (!empty($subInitNotNullProperties)) {
                         $reflectionProperty->setValue($object, $subObject);
                         $initNotNullProperties[$reflectionProperty->getName()] = $subInitNotNullProperties;
@@ -217,6 +223,7 @@ class ObjectSerializer
             if (array_key_exists($reflectionProperty->getName(), $params)) {
                 if (is_null($params[$reflectionProperty->getName()]) &&
                     (
+                        $reflectionProperty->hasType() &&
                         !$reflectionProperty->getType()->allowsNull() ||
                         !$setNullFlag
                     )
@@ -254,6 +261,7 @@ class ObjectSerializer
             $paramsValue = $paramsProperty->getValue($params);
             if (is_null($paramsValue) &&
                 (
+                    $reflectionPropertyObject->hasType() &&
                     !$reflectionPropertyObject->getType()->allowsNull() ||
                     !$setNullFlag
                 )

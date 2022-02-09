@@ -37,21 +37,41 @@ class UserTest extends KernelTestCase
 
     public function testGetUser()
     {
+        /** @var User $user */
         $user = $this->service->get(['login' => 'test']);
 
-        $this->assertEquals(UserTestEntity::get(), $user);
+        $this->assertEquals(1, $user->getId());
+        $this->assertEquals('test', $user->getLogin());
+        $this->assertEquals('test', $user->getPassword());
+        $this->assertEquals(1, $user->getRole()->getId());
+        $this->assertEquals('admin', $user->getRole()->getName());
+        $this->assertEquals('test@gmail.com', $user->getEmail());
+        $this->assertEquals(true, $user->getActive());
     }
 
     public function testGetByRole()
     {
         $user = $this->service->get(['role' => 1]);
 
-        $this->assertEquals(UserTestEntity::get(), $user);
+        $this->assertEquals(1, $user->getId());
+        $this->assertEquals('test', $user->getLogin());
+        $this->assertEquals('test', $user->getPassword());
+        $this->assertEquals(1, $user->getRole()->getId());
+        $this->assertEquals('admin', $user->getRole()->getName());
+        $this->assertEquals('test@gmail.com', $user->getEmail());
+        $this->assertEquals(true, $user->getActive());
 
         $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+
         $user = $this->service->get(['role' => $role]);
 
-        $this->assertEquals(UserTestEntity::get(), $user);
+        $this->assertEquals(1, $user->getId());
+        $this->assertEquals('test', $user->getLogin());
+        $this->assertEquals('test', $user->getPassword());
+        $this->assertEquals(1, $user->getRole()->getId());
+        $this->assertEquals('admin', $user->getRole()->getName());
+        $this->assertEquals('test@gmail.com', $user->getEmail());
+        $this->assertEquals(true, $user->getActive());
     }
 
     public function testNotFindUser()
@@ -72,7 +92,15 @@ class UserTest extends KernelTestCase
     {
         $users = $this->service->getIn(['login' => 'test']);
 
-        $this->assertEquals([UserTestEntity::get()], $users);
+        $user = $users[0];
+
+        $this->assertEquals(1, $user->getId());
+        $this->assertEquals('test', $user->getLogin());
+        $this->assertEquals('test', $user->getPassword());
+        $this->assertEquals(1, $user->getRole()->getId());
+        $this->assertEquals('admin', $user->getRole()->getName());
+        $this->assertEquals('test@gmail.com', $user->getEmail());
+        $this->assertEquals(true, $user->getActive());
     }
 
     public function testGetEmptyUserList()
