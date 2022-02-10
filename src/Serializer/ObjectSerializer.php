@@ -2,13 +2,16 @@
 
 namespace KirsanKifat\ApiServiceBundle\Serializer;
 
+use JMS\Serializer\Annotation\Type;
 use JMS\Serializer\Naming\IdenticalPropertyNamingStrategy;
 use JMS\Serializer\SerializationContext;
 use JMS\Serializer\Serializer;
 use JMS\Serializer\SerializerBuilder;
+use KirsanKifat\ApiServiceBundle\Annotation\Reader;
 use KirsanKifat\ApiServiceBundle\Exception\ServerException;
 use phpDocumentor\Reflection\Types\Integer;
 use Psr\Log\LoggerInterface;
+use ReflectionClass;
 
 class ObjectSerializer
 {
@@ -19,6 +22,12 @@ class ObjectSerializer
         $this->logger = $logger;
     }
 
+    /**
+     * @param object $object
+     * @param bool $returnNull
+     * @param bool $returnOnlyInitNull
+     * @return array
+     */
     public function toArray(object $object, bool $returnNull = true, bool $returnOnlyInitNull = false): array
     {
         return $this->objectToArrayRecursive($object, $returnNull, $returnOnlyInitNull);
@@ -29,9 +38,11 @@ class ObjectSerializer
      *
      * @param array|object $params
      * @param string $objectName
+     * @param bool $setNullValue
      * @return object
+     * @throws ServerException
      */
-    public function toObject($params, string $objectName, $setNullValue = true): object
+    public function toObject($params, string $objectName, bool $setNullValue = true): object
     {
         if (!class_exists($objectName)) {
             $this->logger->error("Класс " . $objectName . " не существует");
@@ -56,7 +67,9 @@ class ObjectSerializer
     /**
      * @param array|object $params
      * @param object $object
+     * @param bool $setNullProperty
      * @return object
+     * @throws ServerException
      */
     public function updateObject($params, object $object, bool $setNullProperty = true): object
     {
@@ -79,8 +92,9 @@ class ObjectSerializer
         $reflectionProperties = $reflectionClass->getProperties();
 
         foreach ($reflectionProperties as $reflectionProperty) {
-            if (array_key_exists($reflectionProperty->getName(), $params)) {
-                if (is_null($params[$reflectionProperty->getName()]) &&
+            $propertyName = $reflectionProperty->getName();
+            if (array_key_exists($propertyName, $params)) {
+                if (is_null($params[$propertyName]) &&
                     (
                         $reflectionProperty->hasType() &&
                         !$reflectionProperty->getType()->allowsNull() ||
@@ -90,18 +104,26 @@ class ObjectSerializer
                     continue;
                 }
 
-                if (
-                    $reflectionProperty->hasType() &&
-                    class_exists($reflectionProperty->getType()->getName()) &&
-                    !empty($params[$reflectionProperty->getName()]) &&
-                    is_array($params[$reflectionProperty->getName()])
+                $type = null;
+                if ($reflectionProperty->hasType()) {
+                    $type = $reflectionProperty->getType()->getName();
+                } elseif (!$reflectionProperty->hasType() &&
+                    $this->getTypeByJsmAnnotation($object, $propertyName)
                 ) {
-                    $subClassName = $reflectionProperty->getType()->getName();
-                    $params[$reflectionProperty->getName()] = $this->setValueIntoObjectFromArrayRecursive($params[$reflectionProperty->getName()], new $subClassName(), $setNullFlag);
+                    $type = $this->getTypeByJsmAnnotation($object, $propertyName);
+                }
+
+                if (
+                    !is_null($type) &&
+                    class_exists($type) &&
+                    !empty($params[$propertyName]) &&
+                    is_array($params[$propertyName])
+                ) {
+                    $params[$propertyName] = $this->setValueIntoObjectFromArrayRecursive($params[$propertyName], new $type(), $setNullFlag);
                 }
 
                 $reflectionProperty->setAccessible(true);
-                $reflectionProperty->setValue($object, $params[$reflectionProperty->getName()]);
+                $reflectionProperty->setValue($object, $params[$propertyName]);
             }
         }
 
@@ -110,22 +132,18 @@ class ObjectSerializer
 
     private function setValueIntoObjectFromObjectRecursive(object $params, object $object, bool $setNullFlag, $recursive = false): object
     {
-        $reflectionClassObject = new \ReflectionClass($object);
-        $reflectionClassParams = new \ReflectionClass($params);
-
-        if ($reflectionClassParams->hasMethod('__getLazyProperties')){
-            $params->__load();
-            $reflectionClassParams = $reflectionClassParams->getParentClass();
-        }
+        $reflectionClassObject = new ReflectionClass($object);
+        $reflectionClassParams = $this->getInitDoctrineReflectionClass($params);
 
         $reflectionPropertiesObject = $reflectionClassObject->getProperties();
 
         foreach ($reflectionPropertiesObject as $reflectionPropertyObject) {
-            if (!$reflectionClassParams->hasProperty($reflectionPropertyObject->getName())) {
+            $propertyObjectName = $reflectionPropertyObject->getName();
+            if (!$reflectionClassParams->hasProperty($propertyObjectName)) {
                 continue;
             }
 
-            $paramsProperty = $reflectionClassParams->getProperty($reflectionPropertyObject->getName());
+            $paramsProperty = $reflectionClassParams->getProperty($propertyObjectName);
             $paramsProperty->setAccessible(true);
 
             if (!$paramsProperty->isInitialized($params)) {
@@ -143,20 +161,24 @@ class ObjectSerializer
                 continue;
             }
 
-            $subObjectClass = null;
+            $type = null;
             if ($reflectionPropertyObject->hasType()) {
-                $subObjectClass = $reflectionPropertyObject->getType()->getName();
+                $type = $reflectionPropertyObject->getType()->getName();
+            } elseif (!$reflectionPropertyObject->hasType() &&
+                $this->getTypeByJsmAnnotation($object, $propertyObjectName)
+            ) {
+                $type = $this->getTypeByJsmAnnotation($object, $propertyObjectName);
             }
 
             $reflectionPropertyObject->setAccessible(true);
 
             if (
-                $reflectionPropertyObject->hasType() &&
-                class_exists($subObjectClass) &&
+                !is_null($type) &&
+                class_exists($type) &&
                 is_object($paramsValue) &&
-                !get_class($paramsValue) instanceof $subObjectClass
+                !get_class($paramsValue) instanceof $type
             ) {
-                $subObject = new $subObjectClass();
+                $subObject = new $type();
                 if (
                     $reflectionPropertyObject->isInitialized($object) &&
                     !empty($reflectionPropertyObject->getValue($object))
@@ -176,12 +198,7 @@ class ObjectSerializer
 
     private function objectToArrayRecursive(object $object, bool $returnNull, bool $returnOnlyInitNull): array
     {
-        $reflectionClass = new \ReflectionClass($object);
-
-        if ($reflectionClass->hasMethod('__getLazyProperties')){
-            $object->__load();
-            $reflectionClass = $reflectionClass->getParentClass();
-        }
+        $reflectionClass = $this->getInitDoctrineReflectionClass($object);
 
         $reflectionProperties = $reflectionClass->getProperties();
 
@@ -205,5 +222,31 @@ class ObjectSerializer
         }
 
         return $resultArr;
+    }
+
+    private function getTypeByJsmAnnotation(object $object, string $propertyName): ?string
+    {
+        $propertyAnnotations = Reader::getProperty($object, $propertyName);
+
+        /** @var Type $jsmType */
+        $jsmType = null;
+        foreach ($propertyAnnotations as $annotation) {
+            if ($annotation instanceof Type) {
+                $jsmType = $annotation->name;
+            }
+        }
+
+        return $jsmType;
+    }
+
+    private function getInitDoctrineReflectionClass(object $object): ReflectionClass
+    {
+        $reflectionClass = new ReflectionClass($object);
+        if ($reflectionClass->hasMethod('__getLazyProperties')){
+            $object->__load();
+            $reflectionClass = $reflectionClass->getParentClass();
+        }
+
+        return $reflectionClass;
     }
 }

@@ -3,12 +3,11 @@
 namespace KirsanKifat\ApiServiceBundle\Tests\Serializer;
 
 use Doctrine\ORM\EntityManagerInterface;
-use KirsanKifat\ApiServiceBundle\Exception\ServerException;
 use KirsanKifat\ApiServiceBundle\Serializer\ObjectSerializer;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Annotations\UserWithAnnotationClass;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\DefaultValueIsNull;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\ExtendedNullableDefaultValueObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\Logger;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\RecursionEntityObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UpdateUserArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UpdateUserObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserArray;
@@ -17,10 +16,12 @@ use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClass;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClassWIthEmptyRole;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserEntityArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserResponseObject;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\UserTestEntity;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\UserResponse;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\NullableDefaultValue;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\UserWithAnnotation;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class EntityObjectSerializerTest extends KernelTestCase
@@ -46,6 +47,22 @@ class EntityObjectSerializerTest extends KernelTestCase
         $array = $this->serializer->toArray(UserClass::get());
 
         $this->assertEquals(UserArray::get(), $array);
+    }
+
+    public function testToArrayWithRoleTypeOnlyAnnotation()
+    {
+        $array = $this->serializer->toArray(UserWithAnnotationClass::get());
+
+        $this->assertEquals(UserArray::get(), $array);
+    }
+
+    public function testEntityToArrayWithRoleTypeOnlyAnnotation()
+    {
+        $entity = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'test']);
+
+        $array = $this->serializer->toArray($entity);
+
+        $this->assertEquals(UserEntityArray::get(), $array);
     }
 
     public function testToArrayWithEmptySubObject()
@@ -79,6 +96,13 @@ class EntityObjectSerializerTest extends KernelTestCase
         $this->assertEquals(UserClass::get(),$object);
     }
 
+    public function testArrayToEntityWithAnnotation()
+    {
+        $object = $this->serializer->toObject(UserArray::get(), UserWithAnnotation::class);
+
+        $this->assertEquals(UserWithAnnotationClass::get(),$object);
+    }
+
     public function testSetNullInNullableDefaultValue()
     {
         $object = $this->serializer->toObject(['id' => 1, 'default' => null], NullableDefaultValue::class);
@@ -98,6 +122,27 @@ class EntityObjectSerializerTest extends KernelTestCase
     public function testObjectToObject()
     {
         $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
+
+        $response = $this->serializer->toObject($user, UserResponse::class);
+
+        $this->assertEquals(UserResponseObject::get(), $response);
+    }
+
+    /**
+     * @return void
+     * @throws \KirsanKifat\ApiServiceBundle\Exception\ServerException
+     * @group my
+     */
+    public function testObjectToObjectWithAnnotations()
+    {
+        $response = $this->serializer->toObject(UserClass::get(), UserWithAnnotation::class);
+
+        $this->assertEquals(UserWithAnnotationClass::get(), $response);
+    }
+
+    public function testObjectWithAnnotationsToObject()
+    {
+        $user = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'test']);
 
         $response = $this->serializer->toObject($user, UserResponse::class);
 
