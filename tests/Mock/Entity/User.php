@@ -3,17 +3,12 @@
 namespace KirsanKifat\ApiServiceBundle\Tests\Mock\Entity;
 
 
-use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
-use JMS\Serializer\Annotation as Serializer;
-use JMS\Serializer\Annotation\ExclusionPolicy;
-use JMS\Serializer\Annotation\MaxDepth;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Repository\UserRepository;
 
 /**
  * @ORM\Entity(repositoryClass=UserRepository::class)
  * @ORM\HasLifecycleCallbacks
- * @ExclusionPolicy("none")
  */
 class User
 {
@@ -37,7 +32,6 @@ class User
     /**
      * @ORM\ManyToOne(targetEntity=Role::class)
      * @ORM\JoinColumn(nullable=false)
-     * @MaxDepth(1)
      */
     private Role $role;
 

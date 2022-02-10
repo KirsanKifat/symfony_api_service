@@ -48,16 +48,6 @@ class EntityObjectSerializerTest extends KernelTestCase
         $this->assertEquals(UserArray::get(), $array);
     }
 
-    public function testFailToArrayWithRecursionObject()
-    {
-        try {
-            $this->serializer->toArray(RecursionEntityObject::get());
-            $this->assertTrue(false, 'Должно быть выброшено исключение');
-        } catch (ServerException $e) {
-            $this->assertTrue(true);
-        }
-    }
-
     public function testToArrayWithEmptySubObject()
     {
         $array = $this->serializer->toArray(UserClassWIthEmptyRole::get());

@@ -12,32 +12,16 @@ use Psr\Log\LoggerInterface;
 
 class ObjectSerializer
 {
-    private Serializer $serializer;
     private LoggerInterface $logger;
 
     public function __construct(LoggerInterface $logger)
     {
         $this->logger = $logger;
-        $builder = SerializerBuilder::create();
-        $builder->setPropertyNamingStrategy(new IdenticalPropertyNamingStrategy());
-        $this->serializer = $builder->build();
     }
 
-    public function toArray(object $object, $returnNull = true, $returnOnlyInitNull = false): array
+    public function toArray(object $object, bool $returnNull = true, bool $returnOnlyInitNull = false): array
     {
-        [$object, $initNotNullProperties] = $this->recursiveInitializationAnyProperty($object);
-
-        if (!$returnNull && $returnOnlyInitNull) {
-            $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull(true));
-        } else {
-            $array = $this->serializer->toArray($object, SerializationContext::create()->enableMaxDepthChecks()->setSerializeNull($returnNull));
-        }
-
-        if ($returnNull) {
-            return $this->recursiveSetNullForInitProperty($array,$initNotNullProperties);
-        } else {
-            return $this->recursiveRemoveNullKeysForInitProperty($array, $initNotNullProperties);
-        }
+        return $this->objectToArrayRecursive($object, $returnNull, $returnOnlyInitNull);
     }
 
     /**
@@ -55,19 +39,12 @@ class ObjectSerializer
         }
 
         if (is_array($params)) {
-            if ($setNullValue) {
-                $params = $this->recursiveClearArrayForDeserialization($params, $objectName);
-            } else {
-                $params = $this->recursiveRemoveNullValue($params);
-            }
-
-            $object = $this->serializer->fromArray($params, $objectName);
+            return $this->setValueIntoObjectFromArrayRecursive($params, new $objectName(), $setNullValue);
         } elseif (is_object($params)) {
             if (get_class($params) === $objectName) {
                 return $params;
             }
-            $params = $this->toArray($params, $setNullValue);
-            $object = $this->toObject($params, $objectName, $setNullValue);
+            $object = $this->setValueIntoObjectFromObjectRecursive($params, new $objectName(), $setNullValue);
         } else {
             $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
             throw new ServerException();
@@ -89,132 +66,13 @@ class ObjectSerializer
         }
 
         if (is_array($params)) {
-            return $this->setValueIntoObjectFromArray($params, $object, $setNullProperty);
+            return $this->setValueIntoObjectFromArrayRecursive($params, $object, $setNullProperty);
         } else {
-            return $this->setValueIntoObjectFromObject($params, $object, $setNullProperty);
+            return $this->setValueIntoObjectFromObjectRecursive($params, $object, $setNullProperty);
         }
     }
 
-    private function recursiveInitializationAnyProperty(object $object, int $count = 0): array
-    {
-        $reflectionClass = new \ReflectionClass($object);
-        $reflectionProperties = $reflectionClass->getProperties();
-        $initNotNullProperties = [];
-        foreach ($reflectionProperties as $reflectionProperty) {
-            $reflectionProperty->setAccessible(true);
-            if (!$reflectionProperty->isInitialized($object)) {
-                if ($reflectionProperty->hasType() && !$reflectionProperty->getType()->allowsNull()) {
-                    if (
-                        $reflectionProperty->getType()->getName() === 'int' ||
-                        $reflectionProperty->getType()->getName() === 'float'
-                    ) {
-                        $reflectionProperty->setValue($object, 0);
-                    } elseif ($reflectionProperty->getType()->getName() === 'string') {
-                        $reflectionProperty->setValue($object, '');
-                    } elseif ($reflectionProperty->getType()->getName() === 'array') {
-                        $reflectionProperty->setValue($object, []);
-                    } elseif ($reflectionProperty->getType()->getName() === 'bool') {
-                        $reflectionProperty->setValue($object, false);
-                    } elseif (class_exists($reflectionProperty->getType()->getName())) {
-                        $type = $reflectionProperty->getType()->getName();
-                        if (get_class($object) === $type || $count > 5) {
-                            $this->logger->error('Объект ' . get_class($object) . ' имеет в себе рекурсивное представление себя');
-                            throw new ServerException();
-                        }
-                        $count++;
-                        [$subObject, $trash] = $this->recursiveInitializationAnyProperty(new $type(), $count);
-
-                        $reflectionProperty->setValue($object, $subObject);
-                    }
-                    $initNotNullProperties[] = $reflectionProperty->getName();
-                } else {
-                    $reflectionProperty->setValue($object,null);
-                }
-            } else {
-                if (is_object($reflectionProperty->getValue($object))) {
-                    if ($count < 5) {
-                        $count++;
-                        [$subObject, $subInitNotNullProperties] = $this->recursiveInitializationAnyProperty($reflectionProperty->getValue($object), $count);
-                    }
-                    if (!empty($subInitNotNullProperties)) {
-                        $reflectionProperty->setValue($object, $subObject);
-                        $initNotNullProperties[$reflectionProperty->getName()] = $subInitNotNullProperties;
-                    }
-                }
-            }
-        }
-
-        return [$object, $initNotNullProperties];
-    }
-
-    private function recursiveSetNullForInitProperty(array $array, array $initNotNullProperties): array
-    {
-        foreach ($initNotNullProperties as $key => $initNotNullProperty) {
-            if (is_array($initNotNullProperty) && !empty($initNotNullProperty)) {
-                $array[$key] = $this->recursiveSetNullForInitProperty($array[$key], $initNotNullProperty);
-            } else {
-                $array[$initNotNullProperty] = null;
-            }
-        }
-
-        return $array;
-    }
-
-    private function recursiveRemoveNullKeysForInitProperty(array $array, array $initNotNullProperties): array
-    {
-        foreach ($initNotNullProperties as $key => $initNotNullProperty) {
-            if (is_array($initNotNullProperty) && !empty($initNotNullProperty)) {
-                $array[$key] = $this->recursiveRemoveNullKeysForInitProperty($array[$key], $initNotNullProperty);
-            } else {
-                unset($array[$initNotNullProperty]);
-            }
-        }
-
-        return $array;
-    }
-
-    private function recursiveClearArrayForDeserialization($params, $objectName)
-    {
-        $reflectionClass = new \ReflectionClass($objectName);
-
-        $reflectionProperties = $reflectionClass->getProperties();
-
-        foreach ($reflectionProperties as $reflectionProperty) {
-            $propertyName = $reflectionProperty->getName();
-            if(
-                $reflectionProperty->hasType() &&
-                !$reflectionProperty->getType()->allowsNull() &&
-                empty($params[$propertyName])
-            ) {
-                unset($params[$propertyName]);
-            }
-
-            if (
-                $reflectionProperty->hasType() &&
-                class_exists($reflectionProperty->getType()->getName()) &&
-                is_array($params[$propertyName])
-            ) {
-                $params[$propertyName] = $this->recursiveClearArrayForDeserialization($params[$propertyName], $reflectionProperty->getType()->getName());
-            }
-        }
-
-        return $params;
-    }
-
-    private function recursiveRemoveNullValue(array $array): array
-    {
-        foreach ($array as $key => $value) {
-            if (is_array($value) && !empty($value)) {
-                $array[$key] = $this->recursiveRemoveNullValue($value);
-            } elseif (is_null($value)) {
-                unset($array[$key]);
-            }
-        }
-
-        return $array;
-    }
-
-    private function setValueIntoObjectFromArray(array $params, object $object, bool $setNullFlag): object
+    private function setValueIntoObjectFromArrayRecursive(array $params, object $object, bool $setNullFlag): object
     {
         $reflectionClass = new \ReflectionClass($object);
 
@@ -232,6 +90,16 @@ class ObjectSerializer
                     continue;
                 }
 
+                if (
+                    $reflectionProperty->hasType() &&
+                    class_exists($reflectionProperty->getType()->getName()) &&
+                    !empty($params[$reflectionProperty->getName()]) &&
+                    is_array($params[$reflectionProperty->getName()])
+                ) {
+                    $subClassName = $reflectionProperty->getType()->getName();
+                    $params[$reflectionProperty->getName()] = $this->setValueIntoObjectFromArrayRecursive($params[$reflectionProperty->getName()], new $subClassName(), $setNullFlag);
+                }
+
                 $reflectionProperty->setAccessible(true);
                 $reflectionProperty->setValue($object, $params[$reflectionProperty->getName()]);
             }
@@ -240,10 +108,15 @@ class ObjectSerializer
         return $object;
     }
 
-    private function setValueIntoObjectFromObject(object $params, object $object, bool $setNullFlag): object
+    private function setValueIntoObjectFromObjectRecursive(object $params, object $object, bool $setNullFlag, $recursive = false): object
     {
         $reflectionClassObject = new \ReflectionClass($object);
         $reflectionClassParams = new \ReflectionClass($params);
+
+        if ($reflectionClassParams->hasMethod('__getLazyProperties')){
+            $params->__load();
+            $reflectionClassParams = $reflectionClassParams->getParentClass();
+        }
 
         $reflectionPropertiesObject = $reflectionClassObject->getProperties();
 
@@ -270,11 +143,67 @@ class ObjectSerializer
                 continue;
             }
 
+            $subObjectClass = null;
+            if ($reflectionPropertyObject->hasType()) {
+                $subObjectClass = $reflectionPropertyObject->getType()->getName();
+            }
+
             $reflectionPropertyObject->setAccessible(true);
+
+            if (
+                $reflectionPropertyObject->hasType() &&
+                class_exists($subObjectClass) &&
+                is_object($paramsValue) &&
+                !get_class($paramsValue) instanceof $subObjectClass
+            ) {
+                $subObject = new $subObjectClass();
+                if (
+                    $reflectionPropertyObject->isInitialized($object) &&
+                    !empty($reflectionPropertyObject->getValue($object))
+                ) {
+                    $subObject = $reflectionPropertyObject->getValue($object);
+                }
+
+                $paramsValue = $this->setValueIntoObjectFromObjectRecursive($paramsValue, $subObject, $setNullFlag, true);
+            }
+
             $reflectionPropertyObject->setValue($object, $paramsValue);
 
         }
 
         return $object;
+    }
+
+    private function objectToArrayRecursive(object $object, bool $returnNull, bool $returnOnlyInitNull): array
+    {
+        $reflectionClass = new \ReflectionClass($object);
+
+        if ($reflectionClass->hasMethod('__getLazyProperties')){
+            $object->__load();
+            $reflectionClass = $reflectionClass->getParentClass();
+        }
+
+        $reflectionProperties = $reflectionClass->getProperties();
+
+        $resultArr = [];
+        foreach ($reflectionProperties as $reflectionProperty) {
+            $propertyName = $reflectionProperty->getName();
+            $reflectionProperty->setAccessible(true);
+            if ($reflectionProperty->isInitialized($object)) {
+                if (!is_null($reflectionProperty->getValue($object))) {
+                    if (is_object($reflectionProperty->getValue($object))) {
+                        $resultArr[$propertyName] = $this->objectToArrayRecursive($reflectionProperty->getValue($object), $returnNull, $returnOnlyInitNull);
+                    } else {
+                        $resultArr[$propertyName] = $reflectionProperty->getValue($object);
+                    }
+                } elseif ($returnNull) {
+                    $resultArr[$propertyName] = null;
+                }
+            } elseif ($returnNull && !$returnOnlyInitNull) {
+                $resultArr[$propertyName] = null;
+            }
+        }
+
+        return $resultArr;
     }
 }
