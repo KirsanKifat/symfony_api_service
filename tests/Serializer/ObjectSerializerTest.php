@@ -16,15 +16,15 @@ use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClass;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClassWIthEmptyRole;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserEntityArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserResponseObject;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\UserTestEntity;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\UserResponse;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\NullableDefaultValue;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\RoleWithAnnotation;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\UserWithAnnotation;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
-class EntityObjectSerializerTest extends KernelTestCase
+class ObjectSerializerTest extends KernelTestCase
 {
     private ObjectSerializer $serializer;
     private EntityManagerInterface $em;
@@ -128,11 +128,6 @@ class EntityObjectSerializerTest extends KernelTestCase
         $this->assertEquals(UserResponseObject::get(), $response);
     }
 
-    /**
-     * @return void
-     * @throws \KirsanKifat\ApiServiceBundle\Exception\ServerException
-     * @group my
-     */
     public function testObjectToObjectWithAnnotations()
     {
         $response = $this->serializer->toObject(UserClass::get(), UserWithAnnotation::class);
@@ -172,12 +167,28 @@ class EntityObjectSerializerTest extends KernelTestCase
         /** @var User $result */
         $result = $this->serializer->updateObject(UpdateUserArray::get(), $user);
 
-        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals('new', $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals(1, $result->getRole()->getId());
+        $this->assertEquals('user', $result->getRole()->getName());
+        $this->assertEquals('my_email@gmail.com', $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
+
+    public function testUpdateObjectWithAnnotationFromArray()
+    {
+        $user = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'test']);
+
+        /** @var User $result */
+        $result = $this->serializer->updateObject(UpdateUserArray::get(), $user);
+
 
         $this->assertEquals(1, $result->getId());
         $this->assertEquals('new', $result->getLogin());
         $this->assertEquals('test', $result->getPassword());
-        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals(1, $result->getRole()->getId());
+        $this->assertEquals('user', $result->getRole()->getName());
         $this->assertEquals('my_email@gmail.com', $result->getEmail());
         $this->assertEquals(true, $result->getActive());
     }
@@ -186,15 +197,29 @@ class EntityObjectSerializerTest extends KernelTestCase
     {
         $user = $this->em->getRepository(User::class)->findOneBy(['login' => 'test']);
 
-        $result = $this->serializer->updateObject(UpdateUserObject::get(), $user);
-
         /** @var User $result */
-        $role = $this->em->getRepository(Role::class)->findOneBy(['name' => 'admin']);
+        $result = $this->serializer->updateObject(UpdateUserObject::get(), $user);
 
         $this->assertEquals(1, $result->getId());
         $this->assertEquals('new', $result->getLogin());
         $this->assertEquals('test', $result->getPassword());
-        $this->assertEquals($role, $result->getRole());
+        $this->assertEquals(1, $result->getRole()->getId());
+        $this->assertEquals('user', $result->getRole()->getName());
+        $this->assertEquals('my_email@gmail.com', $result->getEmail());
+        $this->assertEquals(true, $result->getActive());
+    }
+
+    public function testUpdateObjectWithAnnotationFromObject()
+    {
+        $user = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'test']);
+
+        $result = $this->serializer->updateObject(UpdateUserObject::get(), $user);
+
+        $this->assertEquals(1, $result->getId());
+        $this->assertEquals('new', $result->getLogin());
+        $this->assertEquals('test', $result->getPassword());
+        $this->assertEquals(1, $result->getRole()->getId());
+        $this->assertEquals('user', $result->getRole()->getName());
         $this->assertEquals('my_email@gmail.com', $result->getEmail());
         $this->assertEquals(true, $result->getActive());
     }

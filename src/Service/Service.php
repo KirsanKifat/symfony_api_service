@@ -110,7 +110,7 @@ abstract class Service implements ServiceInterface
             throw new ObjectNotFoundException();
         }
 
-        $params = $this->entitySerializer->toEntity($params, $this->entityName);
+        $params = $this->entitySerializer->updateArray($params, $this->entityName);
         $entity = $this->serializer->updateObject($params, $entity);
 
         $this->em->persist($entity);

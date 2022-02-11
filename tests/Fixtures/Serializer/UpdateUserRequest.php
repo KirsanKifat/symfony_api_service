@@ -2,6 +2,8 @@
 
 namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer;
 
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\RoleResponse;
+
 class UpdateUserRequest
 {
     public string $login;
@@ -10,5 +12,5 @@ class UpdateUserRequest
 
     public ?string $email;
 
-    public ?int $role;
+    public ?RoleResponse $role;
 }

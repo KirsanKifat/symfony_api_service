@@ -2,6 +2,8 @@
 
 namespace KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer;
 
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\RoleResponse;
+
 class UpdateUserObject
 {
     public static function get(): UpdateUserRequest
@@ -10,6 +12,8 @@ class UpdateUserObject
 
         $request->login = 'new';
         $request->email = 'my_email@gmail.com';
+        $request->role = new RoleResponse();
+        $request->role->name = 'user';
 
         return $request;
     }

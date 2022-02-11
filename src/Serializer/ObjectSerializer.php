@@ -2,16 +2,8 @@
 
 namespace KirsanKifat\ApiServiceBundle\Serializer;
 
-use JMS\Serializer\Annotation\Type;
-use JMS\Serializer\Naming\IdenticalPropertyNamingStrategy;
-use JMS\Serializer\SerializationContext;
-use JMS\Serializer\Serializer;
-use JMS\Serializer\SerializerBuilder;
-use KirsanKifat\ApiServiceBundle\Annotation\Reader;
 use KirsanKifat\ApiServiceBundle\Exception\ServerException;
-use phpDocumentor\Reflection\Types\Integer;
 use Psr\Log\LoggerInterface;
-use ReflectionClass;
 
 class ObjectSerializer
 {
@@ -73,7 +65,7 @@ class ObjectSerializer
      */
     public function updateObject($params, object $object, bool $setNullProperty = true): object
     {
-        if (!is_object($params) && !is_array($params)){
+        if (!is_object($params) && !is_array($params)) {
             $this->logger->error("Параметр params дожен быть массивом или объектом, получен тип " . gettype($params));
             throw new ServerException();
         }
@@ -87,7 +79,7 @@ class ObjectSerializer
 
     private function setValueIntoObjectFromArrayRecursive(array $params, object $object, bool $setNullFlag): object
     {
-        $reflectionClass = new \ReflectionClass($object);
+        $reflectionClass = ReflectionHelper::getInitDoctrineProxyClass($object);
 
         $reflectionProperties = $reflectionClass->getProperties();
 
@@ -104,14 +96,9 @@ class ObjectSerializer
                     continue;
                 }
 
-                $type = null;
-                if ($reflectionProperty->hasType()) {
-                    $type = $reflectionProperty->getType()->getName();
-                } elseif (!$reflectionProperty->hasType() &&
-                    $this->getTypeByJsmAnnotation($object, $propertyName)
-                ) {
-                    $type = $this->getTypeByJsmAnnotation($object, $propertyName);
-                }
+                $type = ReflectionHelper::getPropertyType($object, $propertyName);
+
+                $reflectionProperty->setAccessible(true);
 
                 if (
                     !is_null($type) &&
@@ -119,10 +106,15 @@ class ObjectSerializer
                     !empty($params[$propertyName]) &&
                     is_array($params[$propertyName])
                 ) {
-                    $params[$propertyName] = $this->setValueIntoObjectFromArrayRecursive($params[$propertyName], new $type(), $setNullFlag);
+                    if ($reflectionProperty->isInitialized($object) &&
+                        !is_null($reflectionProperty->getValue($object))
+                    ) {
+                        $params[$propertyName] = $this->setValueIntoObjectFromArrayRecursive($params[$propertyName], $reflectionProperty->getValue($object), $setNullFlag);
+                    } else {
+                        $params[$propertyName] = $this->setValueIntoObjectFromArrayRecursive($params[$propertyName], new $type(), $setNullFlag);
+                    }
                 }
 
-                $reflectionProperty->setAccessible(true);
                 $reflectionProperty->setValue($object, $params[$propertyName]);
             }
         }
@@ -132,8 +124,17 @@ class ObjectSerializer
 
     private function setValueIntoObjectFromObjectRecursive(object $params, object $object, bool $setNullFlag, $recursive = false): object
     {
-        $reflectionClassObject = new ReflectionClass($object);
-        $reflectionClassParams = $this->getInitDoctrineReflectionClass($params);
+        $reflectionClassObject = ReflectionHelper::getInitDoctrineProxyClass($object);
+        $reflectionClassParams = ReflectionHelper::getInitDoctrineProxyClass($params);
+
+        // В случае если объект является прокси объектом (а это только в случае если это не 1 уровня объект)
+        // и объект для обновления является тем же классом (оба объекта сравниваются не по прокси классам а по родительским)
+        // возвращаем полностью замененный объект т.к. он с привязкой к базе данных
+        if ($reflectionClassParams->getName() === $reflectionClassObject->getName() &&
+            ReflectionHelper::checkDoctrineProxyClass($object)
+        ) {
+            return $params;
+        }
 
         $reflectionPropertiesObject = $reflectionClassObject->getProperties();
 
@@ -161,14 +162,7 @@ class ObjectSerializer
                 continue;
             }
 
-            $type = null;
-            if ($reflectionPropertyObject->hasType()) {
-                $type = $reflectionPropertyObject->getType()->getName();
-            } elseif (!$reflectionPropertyObject->hasType() &&
-                $this->getTypeByJsmAnnotation($object, $propertyObjectName)
-            ) {
-                $type = $this->getTypeByJsmAnnotation($object, $propertyObjectName);
-            }
+            $type = ReflectionHelper::getPropertyType($object, $propertyObjectName);
 
             $reflectionPropertyObject->setAccessible(true);
 
@@ -188,9 +182,8 @@ class ObjectSerializer
 
                 $paramsValue = $this->setValueIntoObjectFromObjectRecursive($paramsValue, $subObject, $setNullFlag, true);
             }
-
+            
             $reflectionPropertyObject->setValue($object, $paramsValue);
-
         }
 
         return $object;
@@ -198,7 +191,7 @@ class ObjectSerializer
 
     private function objectToArrayRecursive(object $object, bool $returnNull, bool $returnOnlyInitNull): array
     {
-        $reflectionClass = $this->getInitDoctrineReflectionClass($object);
+        $reflectionClass = ReflectionHelper::getInitDoctrineProxyClass($object);
 
         $reflectionProperties = $reflectionClass->getProperties();
 
@@ -224,29 +217,5 @@ class ObjectSerializer
         return $resultArr;
     }
 
-    private function getTypeByJsmAnnotation(object $object, string $propertyName): ?string
-    {
-        $propertyAnnotations = Reader::getProperty($object, $propertyName);
 
-        /** @var Type $jsmType */
-        $jsmType = null;
-        foreach ($propertyAnnotations as $annotation) {
-            if ($annotation instanceof Type) {
-                $jsmType = $annotation->name;
-            }
-        }
-
-        return $jsmType;
-    }
-
-    private function getInitDoctrineReflectionClass(object $object): ReflectionClass
-    {
-        $reflectionClass = new ReflectionClass($object);
-        if ($reflectionClass->hasMethod('__getLazyProperties')){
-            $object->__load();
-            $reflectionClass = $reflectionClass->getParentClass();
-        }
-
-        return $reflectionClass;
-    }
 }

@@ -8,7 +8,8 @@ class UpdateUserArray
     {
         return [
             'login' => 'new',
-            'email' => 'my_email@gmail.com'
+            'email' => 'my_email@gmail.com',
+            'role' => ['name' => 'user']
         ];
     }
 }
