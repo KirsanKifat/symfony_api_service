@@ -37,7 +37,6 @@ class EntityObjectSerializer
                 isset($params[$property->getName()]) &&
                 is_int($params[$property->getName()])
             ) {
-
                 $params[$property->getName()] = $this->em->getRepository($propertyType)->find($params[$property->getName()]);
             }
         }
