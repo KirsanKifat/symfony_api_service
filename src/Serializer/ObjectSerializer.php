@@ -195,6 +195,7 @@ class ObjectSerializer
 
     private function objectToArrayRecursive(object $object, bool $returnNull, bool $returnOnlyInitNull, $maxDepth): ?array
     {
+        $maxDepth--;
         $reflectionClass = ReflectionHelper::getInitDoctrineProxyClass($object);
 
         $reflectionProperties = $reflectionClass->getProperties();
@@ -206,10 +207,10 @@ class ObjectSerializer
             if ($reflectionProperty->isInitialized($object)) {
                 if (!is_null($reflectionProperty->getValue($object))) {
                     if (is_object($reflectionProperty->getValue($object))) {
-                        if ($maxDepth <= 0) {
+                        if ($maxDepth < 0) {
                             return null;
                         }
-                        $maxDepth--;
+
                         $resultArr[$propertyName] = $this->objectToArrayRecursive(
                             $reflectionProperty->getValue($object),
                             $returnNull,
