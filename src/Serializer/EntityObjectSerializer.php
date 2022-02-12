@@ -34,6 +34,7 @@ class EntityObjectSerializer
             $propertyType = ReflectionHelper::getPropertyType(new $objectName(),  $property->getName());
             if ($propertyType &&
                 class_exists($propertyType) &&
+                isset($params[$property->getName()]) &&
                 is_int($params[$property->getName()])
             ) {
 
