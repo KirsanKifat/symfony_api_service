@@ -20,9 +20,9 @@ class ObjectSerializer
      * @param bool $returnOnlyInitNull
      * @return array
      */
-    public function toArray(object $object, bool $returnNull = true, bool $returnOnlyInitNull = false): array
+    public function toArray(object $object, bool $returnNull = true, bool $returnOnlyInitNull = false, int $maxDepth = 2): array
     {
-        return $this->objectToArrayRecursive($object, $returnNull, $returnOnlyInitNull);
+        return $this->objectToArrayRecursive($object, $returnNull, $returnOnlyInitNull, $maxDepth);
     }
 
     /**
@@ -122,7 +122,7 @@ class ObjectSerializer
         return $object;
     }
 
-    private function setValueIntoObjectFromObjectRecursive(object $params, object $object, bool $setNullFlag, $recursive = false): object
+    private function setValueIntoObjectFromObjectRecursive(object $params, object $object, bool $setNullFlag, int $depth = 0): object
     {
         $reflectionClassObject = ReflectionHelper::getInitDoctrineProxyClass($object);
         $reflectionClassParams = ReflectionHelper::getInitDoctrineProxyClass($params);
@@ -131,7 +131,10 @@ class ObjectSerializer
         // и объект для обновления является тем же классом (оба объекта сравниваются не по прокси классам а по родительским)
         // возвращаем полностью замененный объект т.к. он с привязкой к базе данных
         if ($reflectionClassParams->getName() === $reflectionClassObject->getName() &&
-            ReflectionHelper::checkDoctrineProxyClass($object)
+            (
+                ReflectionHelper::checkDoctrineProxyClass($params) ||
+                ReflectionHelper::checkDoctrineProxyClass($object)
+            )
         ) {
             return $params;
         }
@@ -170,7 +173,8 @@ class ObjectSerializer
                 !is_null($type) &&
                 class_exists($type) &&
                 is_object($paramsValue) &&
-                !get_class($paramsValue) instanceof $type
+                !get_class($paramsValue) instanceof $type &&
+                $depth < 10
             ) {
                 $subObject = new $type();
                 if (
@@ -179,8 +183,8 @@ class ObjectSerializer
                 ) {
                     $subObject = $reflectionPropertyObject->getValue($object);
                 }
-
-                $paramsValue = $this->setValueIntoObjectFromObjectRecursive($paramsValue, $subObject, $setNullFlag, true);
+                $depth++;
+                $paramsValue = $this->setValueIntoObjectFromObjectRecursive($paramsValue, $subObject, $setNullFlag, $depth);
             }
             
             $reflectionPropertyObject->setValue($object, $paramsValue);
@@ -189,7 +193,7 @@ class ObjectSerializer
         return $object;
     }
 
-    private function objectToArrayRecursive(object $object, bool $returnNull, bool $returnOnlyInitNull): array
+    private function objectToArrayRecursive(object $object, bool $returnNull, bool $returnOnlyInitNull, $maxDepth): ?array
     {
         $reflectionClass = ReflectionHelper::getInitDoctrineProxyClass($object);
 
@@ -202,7 +206,16 @@ class ObjectSerializer
             if ($reflectionProperty->isInitialized($object)) {
                 if (!is_null($reflectionProperty->getValue($object))) {
                     if (is_object($reflectionProperty->getValue($object))) {
-                        $resultArr[$propertyName] = $this->objectToArrayRecursive($reflectionProperty->getValue($object), $returnNull, $returnOnlyInitNull);
+                        if ($maxDepth <= 0) {
+                            return null;
+                        }
+                        $maxDepth--;
+                        $resultArr[$propertyName] = $this->objectToArrayRecursive(
+                            $reflectionProperty->getValue($object),
+                            $returnNull,
+                            $returnOnlyInitNull,
+                            $maxDepth
+                        );
                     } else {
                         $resultArr[$propertyName] = $reflectionProperty->getValue($object);
                     }

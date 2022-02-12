@@ -8,6 +8,8 @@ use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Annotations\UserWithAnnotationCl
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\DefaultValueIsNull;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\ExtendedNullableDefaultValueObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\Logger;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\RecursiveArray;
+use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\RecursiveObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UpdateUserArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UpdateUserObject;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserArray;
@@ -16,8 +18,10 @@ use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClass;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserClassWIthEmptyRole;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserEntityArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Serializer\UserResponseObject;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\RecursiveObjectRequest;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\UserResponse;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\NullableDefaultValue;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\RecursiveObjectOne;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\RoleWithAnnotation;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;
@@ -89,6 +93,16 @@ class ObjectSerializerTest extends KernelTestCase
         $this->assertEquals(UserEntityArray::get(), $this->serializer->toArray($entity));
     }
 
+    public function testEntityToArrayRecursive()
+    {
+        $entity = $this->em->getRepository(RecursiveObjectOne::class)->find(1);
+
+        set_time_limit(3);
+        $result = $this->serializer->toArray($entity);
+
+        $this->assertEquals(RecursiveArray::get(), $result);
+    }
+
     public function testArrayToObject()
     {
         $object = $this->serializer->toObject(UserArray::get(), User::class);
@@ -117,6 +131,14 @@ class ObjectSerializerTest extends KernelTestCase
         $expect = DefaultValueIsNull::get();
         $expect->default = 'default';
         $this->assertEquals($expect , $object);
+    }
+
+    public function testArrayToEntityRecursive()
+    {
+        set_time_limit(3);
+        $object = $this->serializer->toObject(RecursiveArray::get(), RecursiveObjectOne::class, false);
+
+        $this->assertEquals(RecursiveObject::get(), $object);
     }
 
     public function testObjectToObject()
@@ -158,6 +180,15 @@ class ObjectSerializerTest extends KernelTestCase
         $expect = DefaultValueIsNull::get();
         $expect->default = 'default';
         $this->assertEquals($expect , $object);
+    }
+
+    public function testEntityToEntityRecursive()
+    {
+        $one = $this->em->getRepository(RecursiveObjectOne::class)->find(1);
+
+        set_time_limit(3);
+        $result = $this->serializer->toObject($one, RecursiveObjectRequest::class);
+        $this->assertTrue(true);
     }
 
     public function testUpdateObjectFromArray()

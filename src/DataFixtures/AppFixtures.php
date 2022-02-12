@@ -4,6 +4,8 @@ namespace KirsanKifat\ApiServiceBundle\DataFixtures;
 
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\RecursiveObjectOne;
+use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\RecursiveObjectTwo;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\RoleWithAnnotation;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;
@@ -60,6 +62,15 @@ class AppFixtures extends Fixture
         $user->setRole($roleWithAnnotationUser);
         $user->setActive(true);
         $manager->persist($user);
+
+        $recursiveOne = new RecursiveObjectOne();
+        $recursiveTwo = new RecursiveObjectTwo();
+        $manager->persist($recursiveOne);
+        $manager->persist($recursiveTwo);
+        $recursiveOne->setSubObject($recursiveTwo);
+        $recursiveTwo->setSubObject($recursiveOne);
+        $manager->persist($recursiveOne);
+        $manager->persist($recursiveTwo);
 
         $manager->flush();
     }
