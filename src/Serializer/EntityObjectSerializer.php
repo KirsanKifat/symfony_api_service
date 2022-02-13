@@ -26,7 +26,7 @@ class EntityObjectSerializer
 
     public function updateArray(array $params, string $objectName): array
     {
-        $reflectionClass = new \ReflectionClass($objectName);
+        $reflectionClass = ReflectionHelper::getInitDoctrineProxyClass(new $objectName());
 
         $reflectionProperties = $reflectionClass->getProperties();
 
@@ -34,6 +34,7 @@ class EntityObjectSerializer
             $propertyType = ReflectionHelper::getPropertyType(new $objectName(),  $property->getName());
             if ($propertyType &&
                 class_exists($propertyType) &&
+                !$this->em->getMetadataFactory()->isTransient($propertyType) &&
                 isset($params[$property->getName()]) &&
                 is_int($params[$property->getName()])
             ) {
