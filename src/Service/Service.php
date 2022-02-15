@@ -91,13 +91,13 @@ abstract class Service implements ServiceInterface
 
     public function edit($params, string $returnType = null): object
     {
+        if (is_null($returnType)) {
+            $returnType = $this->entityName;
+        }
+
         if (!is_object($params) || ReflectionHelper::getInitDoctrineProxyClass($params)->getName() !== $this->entityName) {
             if (is_object($params)) {
                 $params = $this->serializer->toArray($params, false, true);
-            }
-
-            if (is_null($returnType)) {
-                $returnType = $this->entityName;
             }
 
             if (!isset($params['id'])) {
