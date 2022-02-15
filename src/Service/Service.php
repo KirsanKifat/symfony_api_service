@@ -9,6 +9,7 @@ use KirsanKifat\ApiServiceBundle\Exception\ValidationUniqueException;
 use KirsanKifat\ApiServiceBundle\Serializer\EntityObjectSerializer;
 use KirsanKifat\ApiServiceBundle\Serializer\ObjectSerializer;
 use Doctrine\ORM\EntityManagerInterface;
+use KirsanKifat\ApiServiceBundle\Serializer\ReflectionHelper;
 use Psr\Log\LoggerInterface;
 
 abstract class Service implements ServiceInterface
@@ -90,29 +91,32 @@ abstract class Service implements ServiceInterface
 
     public function edit($params, string $returnType = null): object
     {
-        if (is_object($params)) {
-            $params = $this->serializer->toArray($params, false, true);
+        if (!is_object($params) || ReflectionHelper::getInitDoctrineProxyClass($params)->getName() !== $this->entityName) {
+            if (is_object($params)) {
+                $params = $this->serializer->toArray($params, false, true);
+            }
+
+            if (is_null($returnType)) {
+                $returnType = $this->entityName;
+            }
+
+            if (!isset($params['id'])) {
+                throw new IncorrectParamsException('Параметр id является обязательным');
+            }
+
+            $this->checkUnique($params, $params['id']);
+
+            $entity = $this->em->getRepository($this->entityName)->find($params['id']);
+
+            if (empty($entity)) {
+                throw new ObjectNotFoundException();
+            }
+
+            $params = $this->entitySerializer->updateArray($params, $this->entityName);
+            $entity = $this->serializer->updateObject($params, $entity);
+        } else {
+            $entity = $params;
         }
-
-        if (is_null($returnType)) {
-            $returnType = $this->entityName;
-        }
-
-        if (!isset($params['id'])) {
-            throw new IncorrectParamsException('Параметр id является обязательным');
-        }
-
-        $this->checkUnique($params, $params['id']);
-
-        $entity = $this->em->getRepository($this->entityName)->find($params['id']);
-
-        if (empty($entity)) {
-            throw new ObjectNotFoundException();
-        }
-
-        $params = $this->entitySerializer->updateArray($params, $this->entityName);
-        $entity = $this->serializer->updateObject($params, $entity);
-
         $this->em->persist($entity);
         $this->em->flush();
 
