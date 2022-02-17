@@ -38,7 +38,7 @@ abstract class Service implements ServiceInterface
         }
 
         if (is_object($params)) {
-            $params = $this->serializer->toArray($params);
+            $params = $this->serializer->toArray($params, false, true);
         }
 
         $entity = $this->em->getRepository($this->entityName)->findOneBy($params);
@@ -57,7 +57,7 @@ abstract class Service implements ServiceInterface
         }
 
         if (is_object($params)) {
-            $params = $this->serializer->toArray($params);
+            $params = $this->serializer->toArray($params, false, true);
         }
 
         $entities = $this->em->getRepository($this->entityName)->findBy($params);
