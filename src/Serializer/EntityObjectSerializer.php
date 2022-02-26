@@ -2,6 +2,7 @@
 
 namespace KirsanKifat\ApiServiceBundle\Serializer;
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
@@ -32,6 +33,7 @@ class EntityObjectSerializer
 
         foreach ($reflectionProperties as $property) {
             $propertyType = ReflectionHelper::getPropertyType(new $objectName(),  $property->getName());
+
             if ($propertyType &&
                 class_exists($propertyType) &&
                 !$this->em->getMetadataFactory()->isTransient($propertyType) &&
@@ -39,6 +41,28 @@ class EntityObjectSerializer
                 is_int($params[$property->getName()])
             ) {
                 $params[$property->getName()] = $this->em->getRepository($propertyType)->find($params[$property->getName()]);
+            }
+
+            if ($propertyType &&
+                class_exists($propertyType) &&
+                $propertyType === ArrayCollection::class &&
+                isset($params[$property->getName()]) &&
+                is_array($params[$property->getName()])
+            ) {
+                $defaultValue = $params[$property->getName()];
+                $params[$property->getName()] = new ArrayCollection();
+                foreach ($defaultValue as $id) {
+                    if (!is_int($id)) {
+                        $params[$property->getName()] = $defaultValue;
+                        break;
+                    }
+
+                    $collectionType = ReflectionHelper::getArrayCollectionPropertyTarget(new $objectName(),  $property->getName());
+
+                    $arrayCollObject = $this->em->getRepository($collectionType)->find($id);
+
+                    $params[$property->getName()]->add($arrayCollObject);
+                }
             }
         }
 
