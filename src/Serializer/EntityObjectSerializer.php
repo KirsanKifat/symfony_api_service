@@ -67,6 +67,11 @@ class EntityObjectSerializer
             $defaultValue = $value;
             $value = new ArrayCollection();
             foreach ($defaultValue as $id) {
+                if (is_object($id) && !$this->em->getMetadataFactory()->isTransient(get_class($id))) {
+                    $value->add($id);
+                    continue;
+                }
+
                 if (!is_int($id)) {
                     $value = $defaultValue;
                     break;
