@@ -1,3 +1,0 @@
-#index:
-#    path: /
-#    controller: KirsanKifat\ApiServiceBundle\Controller\DefaultController::index
