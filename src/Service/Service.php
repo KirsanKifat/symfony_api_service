@@ -50,7 +50,7 @@ abstract class Service implements ServiceInterface
         }
     }
 
-    public function getIn($params, string $returnType = null): array
+    public function getIn($params, string $returnType = null, ?array $orderBy = null, ?int $limit = null, ?int $offset = null): array
     {
         if (is_null($returnType)) {
             $returnType = $this->entityName;
@@ -60,7 +60,7 @@ abstract class Service implements ServiceInterface
             $params = $this->serializer->toArray($params, false, true);
         }
 
-        $entities = $this->em->getRepository($this->entityName)->findBy($params);
+        $entities = $this->em->getRepository($this->entityName)->findBy($params, $orderBy, $limit, $offset);
 
         foreach ($entities as $key => $entity) {
             $entities[$key] = $this->serializer->toObject($entity, $returnType);
