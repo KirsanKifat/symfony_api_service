@@ -6,5 +6,5 @@ class ObjectNotFoundException extends \Exception
 {
     protected $message = "Объект не найден";
 
-    protected $code = 400;
+    protected $code = 404;
 }
