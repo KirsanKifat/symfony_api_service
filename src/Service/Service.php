@@ -69,6 +69,15 @@ abstract class Service implements ServiceInterface
         return $entities;
     }
 
+    public function count($params): int
+    {
+        if (is_object($params)) {
+            $params = $this->serializer->toArray($params);
+        }
+
+        return $this->em->getRepository($this->entityName)->count($params);
+    }
+
     public function create($params, string $returnType = null): object
     {
         if (is_object($params)) {
