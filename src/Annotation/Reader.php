@@ -3,6 +3,7 @@
 namespace KirsanKifat\ApiServiceBundle\Annotation;
 
 use Doctrine\Common\Annotations\AnnotationReader as DocReader;
+use KirsanKifat\ApiServiceBundle\Serializer\ReflectionHelper;
 
 class Reader
 {
@@ -13,7 +14,7 @@ class Reader
     public static function getClass($class)
     {
         $reader = new DocReader;
-        $reflector = new \ReflectionClass($class);
+        $reflector = ReflectionHelper::getInitDoctrineProxyClass($class);
         return $reader->getClassAnnotations($reflector);
     }
 
@@ -25,7 +26,8 @@ class Reader
     public static function getProperty($class, $property): array
     {
         $reader = new DocReader;
-        $reflector = new \ReflectionProperty($class, $property);
+        $reflectionClass = ReflectionHelper::getInitDoctrineProxyClass($class);
+        $reflector = $reflectionClass->getProperty($property);
         return $reader->getPropertyAnnotations($reflector);
     }
 
@@ -37,7 +39,8 @@ class Reader
     public static function getMethod($class, $method): array
     {
         $reader = new DocReader;
-        $reflector = new \ReflectionMethod($class, $method);
+        $reflectionClass = ReflectionHelper::getInitDoctrineProxyClass($class);
+        $reflector = $reflectionClass->getMethod($method);
         return $reader->getMethodAnnotations($reflector);
     }
 
