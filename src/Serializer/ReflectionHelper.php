@@ -88,10 +88,10 @@ class ReflectionHelper
     /**
      * Получает ReflecitionClass, если это объект doctrine с ленивой загрузкой, получает инициализированный класс
      *
-     * @param object $object
+     * @param object|string $object
      * @return ReflectionClass
      */
-    public static function getInitDoctrineProxyClass(object $object): ReflectionClass
+    public static function getInitDoctrineProxyClass($object): ReflectionClass
     {
         $reflectionClass = new ReflectionClass($object);
         if ($reflectionClass->hasMethod('__getLazyProperties')) {
