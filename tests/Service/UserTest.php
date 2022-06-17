@@ -11,20 +11,16 @@ use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\EditArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\EditObjectRequest;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\UserCreateArray;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\UserCreateRequest;
-use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\UserTestEntity;
 use KirsanKifat\ApiServiceBundle\Tests\Fixtures\Service\User\UserTestResponse;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Dto\UserResponse;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\Role;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\User;
-use KirsanKifat\ApiServiceBundle\Tests\Mock\Entity\UserWithAnnotation;
 use KirsanKifat\ApiServiceBundle\Tests\Mock\Service\UserService;
-use KirsanKifat\ApiServiceBundle\Tests\Mock\Service\UserWithAnnotationService;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class UserTest extends KernelTestCase
 {
     private UserService $service;
-    private UserWithAnnotationService $serviceAnnotation;
     private EntityManagerInterface $em;
 
     protected function setUp(): void
@@ -35,7 +31,6 @@ class UserTest extends KernelTestCase
             ->getManager();
 
         $this->service = new UserService($this->em, new Logger());
-        $this->serviceAnnotation = new UserWithAnnotationService($this->em, new Logger());
     }
 
     public function testGetUser()
@@ -129,24 +124,6 @@ class UserTest extends KernelTestCase
         $this->assertEquals($user, $userByDB);
     }
 
-    public function testCreateWithAnnotationFromArray()
-    {
-        $user = $this->serviceAnnotation->create(UserCreateArray::get());
-
-        $userByDB = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'my_user']);
-
-        $this->assertEquals($user, $userByDB);
-    }
-
-    public function testCreateWithAnnotationFromObject()
-    {
-        $user = $this->serviceAnnotation->create(UserCreateRequest::get());
-
-        $userByDB = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'my_user']);
-
-        $this->assertEquals($user, $userByDB);
-    }
-
     public function testCreateErrorByNotFullData()
     {
         $data = UserCreateArray::get();
@@ -197,28 +174,6 @@ class UserTest extends KernelTestCase
         $user = $this->service->edit(EditObjectRequest::get());
 
         $userByDB = $this->em->getRepository(User::class)->findOneBy(['login' => 'new']);
-
-        $this->assertEquals($userByDB, $user);
-        $this->assertEquals('new', $userByDB->getLogin());
-        $this->assertEquals(2, $userByDB->getRole()->getId());
-    }
-
-    public function testEditWithAnnotationFromArray()
-    {
-        $user = $this->serviceAnnotation->edit(EditArray::get());
-
-        $userByDB = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'new']);
-
-        $this->assertEquals($userByDB, $user);
-        $this->assertEquals('new', $userByDB->getLogin());
-        $this->assertEquals(2, $userByDB->getRole()->getId());
-    }
-
-    public function testEditWithAnnotationFromObject()
-    {
-        $user = $this->serviceAnnotation->edit(EditObjectRequest::get());
-
-        $userByDB = $this->em->getRepository(UserWithAnnotation::class)->findOneBy(['login' => 'new']);
 
         $this->assertEquals($userByDB, $user);
         $this->assertEquals('new', $userByDB->getLogin());
