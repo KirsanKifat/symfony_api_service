@@ -16,7 +16,7 @@ interface ServiceInterface
      * @param string $returnType
      * @return object[]
      */
-    public function getIn($params, string $returnType = null): array;
+    public function getIn($params, string $returnType = null, ?array $orderBy = null, ?int $limit = null, ?int $offset = null): array;
 
     /**
      * @param array|object $params
